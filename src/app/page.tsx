@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, Home, Search, Clock, User, Send, MapPin, CheckCircle2, Activity, ChevronLeft, ReceiptText, BellRing, Navigation2, LogIn, LogOut, Package } from 'lucide-react';
+import { Menu, Home, Search, Clock, User, Send, MapPin, CheckCircle2, Activity, ChevronLeft, ReceiptText, BellRing, Navigation2, LogIn, LogOut, Package, Zap } from 'lucide-react';
 import OrchestratorMap from './components/OrchestratorMap';
 import { createClient } from '@/lib/supabase';
 import { signInWithGoogle, signOut } from './actions/auth';
@@ -17,15 +17,21 @@ export default function MobileHome() {
   const [user, setUser] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('home');
+  const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
     const supabase = createClient();
+    
+    // Initial check
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
+      setAuthLoading(false);
     });
 
+    // Listen for changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
+      setAuthLoading(false);
     });
 
     return () => subscription.unsubscribe();
@@ -97,6 +103,66 @@ export default function MobileHome() {
   const showNav = !!result && !loading;
   const showInput = !result && !loading;
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <motion.div 
+          animate={{ scale: [1, 1.1, 1], opacity: [0.3, 0.6, 0.3] }}
+          transition={{ duration: 2, repeat: Infinity }}
+          className="w-16 h-16 bg-accent/20 rounded-full blur-xl"
+        />
+        <Zap className="w-8 h-8 text-accent absolute animate-pulse" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="relative h-[100dvh] w-full overflow-hidden bg-background font-sans text-foreground selection:bg-accent/30 flex flex-col items-center justify-center p-6">
+        {/* Background Image & Blur */}
+        <div
+          className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat transition-transform duration-1000 scale-105"
+          style={{ backgroundImage: 'url("/bg-mountains.png")' }}
+        />
+        <div className="absolute inset-0 z-0 bg-stone-950/40 backdrop-blur-[2px]" />
+        <div className="absolute inset-0 z-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+        
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.8, ease: [0.23, 1, 0.32, 1] }}
+          className="w-full max-w-md bg-white/5 border border-white/10 backdrop-blur-[32px] rounded-[3rem] p-12 text-center relative z-10 shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
+        >
+          <div className="w-24 h-24 bg-accent/10 border border-accent/20 rounded-[2rem] flex items-center justify-center mx-auto mb-10 shadow-[inset_0_0_30px_rgba(202,138,4,0.1)] relative">
+             <div className="absolute inset-0 bg-accent/20 blur-2xl rounded-full" />
+             <Zap className="w-12 h-12 text-accent relative z-10" />
+          </div>
+          
+          <h1 className="text-4xl font-serif text-white mb-4 tracking-tight">Antigravity</h1>
+          <p className="text-white/40 mb-12 text-lg font-light tracking-wide">
+            Secure agentic service <br />
+            <span className="italic font-serif text-accent/80">orchestration for Karachi</span>
+          </p>
+          
+          <button 
+            onClick={signInWithGoogle}
+            className="w-full h-16 bg-white/10 hover:bg-white/15 border border-white/10 backdrop-blur-xl text-white rounded-[1.5rem] font-medium text-lg flex items-center justify-center gap-4 transition-all active:scale-[0.98] group"
+          >
+            <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+              <img src="https://www.google.com/favicon.ico" className="w-4 h-4" alt="Google" />
+            </div>
+            Continue with Google
+          </button>
+          
+          <div className="mt-12 pt-10 border-t border-white/5 flex flex-col gap-2">
+            <span className="text-[10px] uppercase tracking-[0.3em] text-white/20 font-bold">#AISeekho2026 Challenge 2</span>
+            <span className="text-[10px] uppercase tracking-[0.2em] text-accent/40 font-bold">Secure Orchestration Layer</span>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-background font-sans text-foreground selection:bg-accent/30">
       {/* Background Image & Blur */}
@@ -120,20 +186,25 @@ export default function MobileHome() {
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          {user ? (
-            <button onClick={() => signOut()} className="p-2 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-xl border border-white/10 transition-all active:scale-95 shadow-2xl group relative">
-              {user.user_metadata.avatar_url ? (
-                <img src={user.user_metadata.avatar_url} className="w-5 h-5 rounded-full" alt="profile" />
-              ) : (
-                <User size={20} className="text-foreground/80" />
-              )}
-            </button>
-          ) : (
-            <button onClick={() => signInWithGoogle()} className="px-4 py-2 rounded-full bg-accent text-stone-950 font-bold text-xs flex items-center gap-2 transition-all active:scale-95 shadow-xl">
-              <LogIn size={14} /> Login
-            </button>
+          {user && (
+            <>
+              <button 
+                onClick={() => signOut()} 
+                className="p-2.5 rounded-full bg-white/5 hover:bg-red-500/10 hover:border-red-500/20 backdrop-blur-xl border border-white/10 transition-all active:scale-95 group"
+                title="Logout"
+              >
+                <LogOut size={18} className="text-white/40 group-hover:text-red-400 transition-colors" />
+              </button>
+              <div className="w-10 h-10 rounded-full border border-white/10 p-0.5 overflow-hidden backdrop-blur-xl bg-white/5">
+                <img 
+                  src={user.user_metadata.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`} 
+                  className="w-full h-full rounded-full object-cover" 
+                  alt="profile" 
+                />
+              </div>
+            </>
           )}
-          <button className="p-2 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-xl border border-white/10 transition-all active:scale-95 shadow-2xl">
+          <button className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-xl border border-white/10 transition-all active:scale-95">
             <Menu size={20} className="text-foreground/80" />
           </button>
         </div>
