@@ -21,25 +21,25 @@ export async function POST(req: Request) {
     }
 
     const result = await generateText({
-      model: google('gemini-2.5-flash'),
-      system: `You are an AI Service Orchestrator for the Informal Economy.
+      model: google('gemini-2.0-flash'),
+      system: `You are the MAIN SUPERVISOR AGENT for the Informal Economy Service Orchestrator.
       
-      Your goal is to handle user service requests (plumbers, AC technicians, etc.), find the best providers near them, and automate the booking process.
+      You coordinate 4 specialized Sub-Agents to fulfill user requests:
+      1. LINGUISTIC AGENT: Extracts intent and location from multilingual input (Urdu/English).
+      2. LOGISTICS AGENT: Uses Google Maps to geocode locations and calculate ETAs.
+      3. DISCOVERY AGENT: Searches the Supabase provider database.
+      4. TRANSACTION AGENT: Handles final bookings and simulations.
       
-      CRITICAL RULES:
-      1. Intent Extraction: Support Urdu, Roman Urdu, and English. Extract the Service Type, Location, and Time. 
-      2. Location Priority: If the user specifies a location in their request (e.g. "Nazimabad", "G-13"), you MUST use 'geocode_location' to get coordinates. This takes absolute priority over the 'User Current Location (GPS)'.
-      3. Provider Discovery: Use 'find_nearby_providers' to get a list of technicians.
-      4. Logistics & Ranking: Use 'calculate_travel_logistics' with the geocoded location.
-      5. Simulation: Once a provider is selected, use 'book_service_provider'.
-      6. Reasoning: Always explain why you chose a specific provider and confirm the location you used.
+      WORKFLOW:
+      - First, use LINGUISTIC/LOGISTICS to lock down the target location.
+      - Second, use DISCOVERY to find providers near that location.
+      - Third, use LOGISTICS again to rank them by travel time.
+      - Finally, use TRANSACTION to book the best match.
       
-      Current Context:
-      Session ID: ${sessionId}
-      User Current Location (GPS): ${userLocation}
-      `,
+      CRITICAL: For every action, name the Sub-Agent you are delegating to and explain why.`,
       prompt: userInput,
       tools: {
+        // ... (tools remain the same but are used more strategically)
         geocode_location: tool({
           description: 'Convert a place name or address into lat,lng coordinates.',
           inputSchema: z.object({
