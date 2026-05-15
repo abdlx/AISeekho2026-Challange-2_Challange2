@@ -3,6 +3,8 @@ import { generateText, tool, stepCountIs } from 'ai';
 import { z } from 'zod';
 import { createAdminClient, createServerSupabaseClient } from '@/lib/supabase-server';
 import { getShippingETA } from '@/lib/google-maps';
+import { linguisticAgent } from '@/lib/agents/linguistic';
+import { discoveryAgent } from '@/lib/agents/discovery';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,30 +22,40 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Missing required fields: userInput, sessionId' }, { status: 400 });
     }
 
+    // PHASE 1: Delegate to Linguistic Agent
+    const linguisticAnalysis = await linguisticAgent(userInput);
+    
+    await adminClient.from('agent_traces').insert({
+      session_id: sessionId,
+      step_type: 'linguistic_analysis',
+      agent_name: 'Linguistic Agent',
+      payload: linguisticAnalysis,
+      user_id: user?.id || null
+    });
+
+    // PHASE 2: Supervisor & Logistics Coordination
     const result = await generateText({
-      model: google('gemini-2.0-flash'),
-      system: `You are the MAIN SUPERVISOR AGENT for the Informal Economy Service Orchestrator.
+      model: google('gemini-3-flash-preview'),
+      system: `You are the MAIN SUPERVISOR AGENT.
       
-      You coordinate 4 specialized Sub-Agents to fulfill user requests:
-      1. LINGUISTIC AGENT: Extracts intent and location from multilingual input (Urdu/English).
-      2. LOGISTICS AGENT: Uses Google Maps to geocode locations and calculate ETAs.
-      3. DISCOVERY AGENT: Searches the Supabase provider database.
-      4. TRANSACTION AGENT: Handles final bookings and simulations.
+      The LINGUISTIC AGENT has already analyzed the request:
+      - Intent: ${linguisticAnalysis.intent}
+      - Service: ${linguisticAnalysis.serviceType}
+      - Location Mentioned: ${linguisticAnalysis.locationName}
       
-      WORKFLOW:
-      - First, use LINGUISTIC/LOGISTICS to lock down the target location.
-      - Second, use DISCOVERY to find providers near that location.
-      - Third, use LOGISTICS again to rank them by travel time.
-      - Finally, use TRANSACTION to book the best match.
+      Your goal is to coordinate LOGISTICS and DISCOVERY to find the best provider.
       
-      CRITICAL: For every action, name the Sub-Agent you are delegating to and explain why.`,
-      prompt: userInput,
+      RULES:
+      1. If a location was mentioned, geocode it first.
+      2. Call 'find_providers' for ${linguisticAnalysis.serviceType}.
+      3. Use LOGISTICS to rank providers by travel time.
+      4. Book the best match.`,
+      prompt: `Original User Input: ${userInput}`,
       tools: {
-        // ... (tools remain the same but are used more strategically)
         geocode_location: tool({
-          description: 'Convert a place name or address into lat,lng coordinates.',
+          description: 'LOGISTICS AGENT: Convert address to coordinates.',
           inputSchema: z.object({
-            address: z.string().describe('The name of the place or address to geocode'),
+            address: z.string(),
           }),
           execute: async ({ address }) => {
             const apiKey = process.env.GOOGLE_MAPS_API_KEY;
@@ -57,42 +69,35 @@ export async function POST(req: Request) {
             return null;
           },
         }),
-        find_nearby_providers: tool({
-          description: 'Search the database for service providers matching a specific type.',
+        find_providers: tool({
+          description: 'DISCOVERY AGENT: Search database for matching providers near the user.',
           inputSchema: z.object({
-            serviceType: z.string().describe('The type of service needed (e.g., AC Technician, Plumber)'),
+            serviceType: z.string(),
+            location: z.string().describe('The lat,lng coordinates of the user.'),
           }),
-          execute: async ({ serviceType }) => {
-            const { data, error } = await adminClient
-              .from('service_providers')
-              .select('*')
-              .ilike('service_type', `%${serviceType}%`)
-              .eq('is_available', true);
-            
-            if (error) throw new Error(`Provider Search Error: ${error.message}`);
-            return data;
+          execute: async ({ serviceType, location }) => {
+            const [lat, lng] = location.split(',').map(Number);
+            return await discoveryAgent(serviceType, lat, lng);
           },
         }),
-        calculate_travel_logistics: tool({
-          description: 'Calculate real-time travel time and distance between the user and a provider.',
+        calculate_travel: tool({
+          description: 'LOGISTICS AGENT: Calculate real-time travel time.',
           inputSchema: z.object({
-            providerId: z.string().uuid(),
-            providerLocation: z.string().describe('The lat,lng of the provider'),
-            customerLocation: z.string().optional().describe('The lat,lng of the user. Use the geocoded location if the user specified one in text, otherwise use the GPS location.'),
+            providerLocation: z.string(),
+            customerLocation: z.string().optional(),
           }),
           execute: async ({ providerLocation, customerLocation }) => {
             return await getShippingETA(providerLocation, customerLocation || userLocation);
           },
         }),
-        book_service_provider: tool({
-          description: 'Simulate booking a service provider and generating a confirmation.',
+        book_provider: tool({
+          description: 'TRANSACTION AGENT: Finalize the booking.',
           inputSchema: z.object({
             providerId: z.string().uuid(),
             providerName: z.string(),
-            scheduledTime: z.string().describe('ISO timestamp or relative time'),
             estimatedCost: z.number(),
           }),
-          execute: async ({ providerId, providerName, scheduledTime, estimatedCost }) => {
+          execute: async ({ providerId, providerName, estimatedCost }) => {
             const { data, error } = await adminClient
               .from('service_bookings')
               .insert({
@@ -111,7 +116,7 @@ export async function POST(req: Request) {
               status: 'success',
               confirmationCode: `BK-${Math.floor(Math.random() * 10000)}`,
               provider: providerName,
-              message: `Booking confirmed for ${scheduledTime}. ${providerName} is on the way.`
+              message: `Booking confirmed for ${providerName}.`
             };
           },
         }),
@@ -121,14 +126,19 @@ export async function POST(req: Request) {
 
     const executedActions: string[] = [];
 
-    // Log traces for Challenge requirement
+    // Log traces with Agent Attribution
     for (const step of result.steps) {
       const toolName = step.toolCalls?.[0]?.toolName || null;
       if (toolName) executedActions.push(toolName);
 
+      const agentName = toolName === 'find_providers' ? 'Discovery Agent' : 
+                        (toolName === 'geocode_location' || toolName === 'calculate_travel') ? 'Logistics Agent' : 
+                        toolName === 'book_provider' ? 'Transaction Agent' : 'Supervisor';
+
       await adminClient.from('agent_traces').insert({
         session_id: sessionId,
-        step_type: 'service_orchestration',
+        step_type: 'multi_agent_orchestration',
+        agent_name: agentName,
         tool_name: toolName,
         payload: step,
         user_id: user?.id || null
