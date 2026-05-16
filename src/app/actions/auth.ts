@@ -9,9 +9,18 @@ export async function signInWithGoogle() {
 
   if (isCapacitor) {
     try {
-      await GoogleAuth.initialize();
+      // Fetch client ID at runtime from our server — env vars in capacitor.config.ts
+      // are evaluated at sync time and will always be empty in Cloud Run.
+      const config = await fetch('/api/config').then(r => r.json());
+      const clientId = config.androidClientId || config.googleClientId;
+
+      if (!clientId) {
+        throw new Error('Google Client ID is not configured on the server.');
+      }
+
+      await GoogleAuth.initialize({ clientId, scopes: ['profile', 'email'], grantOfflineAccess: true });
       const googleUser = await GoogleAuth.signIn();
-      const { data, error } = await supabase.auth.signInWithIdToken({
+      const { error } = await supabase.auth.signInWithIdToken({
         provider: 'google',
         token: googleUser.authentication.idToken,
       });
