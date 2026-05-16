@@ -94,6 +94,8 @@ export default function MobileHome() {
   const [showMenu, setShowMenu] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [scrolled, setScrolled] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   useEffect(() => {
     let subscription: { unsubscribe: () => void } | null = null;
@@ -280,15 +282,32 @@ export default function MobileHome() {
           </p>
 
           <motion.button
-            onClick={signInWithGoogle}
+            onClick={async () => {
+              setLoginError(null);
+              setLoginLoading(true);
+              try {
+                await signInWithGoogle();
+              } catch (err: any) {
+                setLoginError(err?.message || String(err));
+              } finally {
+                setLoginLoading(false);
+              }
+            }}
             whileTap={{ scale: 0.96 }}
-            className="w-full h-16 bg-white/10 hover:bg-white/15 border border-white/10 backdrop-blur-xl text-white rounded-[1.5rem] font-medium text-lg flex items-center justify-center gap-4 transition-all active:scale-[0.98] group"
+            disabled={loginLoading}
+            className="w-full h-16 bg-white/10 hover:bg-white/15 border border-white/10 backdrop-blur-xl text-white rounded-[1.5rem] font-medium text-lg flex items-center justify-center gap-4 transition-all active:scale-[0.98] group disabled:opacity-60"
           >
             <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
               <img src="https://www.google.com/favicon.ico" className="w-4 h-4" alt="Google" />
             </div>
-            Continue with Google
+            {loginLoading ? 'Signing in...' : 'Continue with Google'}
           </motion.button>
+
+          {loginError && (
+            <div className="mt-4 p-4 bg-red-500/10 border border-red-500/30 rounded-2xl text-red-400 text-sm text-left break-all">
+              {loginError}
+            </div>
+          )}
 
           <div className="mt-12 pt-10 border-t border-white/5 flex flex-col gap-2">
             <span className="text-[10px] uppercase tracking-[0.3em] text-white/20 font-bold">#AISeekho2026 Challenge 2</span>
