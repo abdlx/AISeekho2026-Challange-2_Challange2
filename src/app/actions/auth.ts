@@ -1,46 +1,25 @@
 'use client';
 
 import { createClientAsync } from '@/lib/supabase';
-import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
+
+const CLOUD_RUN_URL = 'https://aiseekho-ch-2-phase-2-835282333422.europe-west1.run.app';
 
 export async function signInWithGoogle() {
-  const isCapacitor = typeof window !== 'undefined' && (window as any).Capacitor;
   const supabase = await createClientAsync();
 
-  if (isCapacitor) {
-    // Fetch client ID at runtime from our server — env vars in capacitor.config.ts
-    // are evaluated at sync time and will always be empty in Cloud Run.
-    const config = await fetch('/api/config').then(r => r.json());
-    const clientId = config.androidClientId || config.googleClientId;
+  // Always redirect to the Cloud Run URL — this keeps the flow inside
+  // the Capacitor WebView since the app loads from the same origin.
+  const redirectTo = `${CLOUD_RUN_URL}/auth/callback`;
 
-    if (!clientId) {
-      throw new Error('Google Client ID is not configured on the server. Check NEXT_PUBLIC_ANDROID_CLIENT_ID in Cloud Run.');
-    }
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo,
+    },
+  });
 
-    await GoogleAuth.initialize({ clientId, scopes: ['profile', 'email'], grantOfflineAccess: true });
-    const googleUser = await GoogleAuth.signIn();
-
-    if (!googleUser?.authentication?.idToken) {
-      throw new Error(`Google Sign-In returned no idToken. User object: ${JSON.stringify(googleUser)}`);
-    }
-
-    const { error } = await supabase.auth.signInWithIdToken({
-      provider: 'google',
-      token: googleUser.authentication.idToken,
-    });
-    if (error) throw error;
-    window.location.href = '/';
-  } else {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-    if (error) {
-      console.error('Error signing in with Google:', error.message);
-      throw error;
-    }
+  if (error) {
+    throw new Error(`Google sign-in failed: ${error.message}`);
   }
 }
 
@@ -48,8 +27,7 @@ export async function signOut() {
   const supabase = await createClientAsync();
   const { error } = await supabase.auth.signOut();
   if (error) {
-    console.error('Error signing out:', error.message);
-    throw error;
+    throw new Error(`Sign out failed: ${error.message}`);
   }
   window.location.reload();
 }
