@@ -97,6 +97,17 @@ export default function MobileHome() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
+  // Pick up login errors from the auth callback redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const err = params.get('login_error');
+    if (err) {
+      setLoginError(decodeURIComponent(err));
+      // Clean the URL
+      window.history.replaceState({}, '', '/');
+    }
+  }, []);
+
   useEffect(() => {
     let subscription: { unsubscribe: () => void } | null = null;
 
