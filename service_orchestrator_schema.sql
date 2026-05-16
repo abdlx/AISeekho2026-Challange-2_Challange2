@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS service_bookings (
     scheduled_time TIMESTAMP,
     total_cost_pkr INTEGER,
     status TEXT DEFAULT 'confirmed', -- 'confirmed', 'completed', 'cancelled'
+    user_id UUID REFERENCES auth.users(id),
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -31,7 +32,19 @@ CREATE TABLE IF NOT EXISTS agent_traces (
     session_id UUID NOT NULL,
     step_type TEXT NOT NULL,
     tool_name TEXT,
+    agent_name TEXT,
     payload JSONB,
+    user_id UUID REFERENCES auth.users(id),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- 4. Follow-ups
+CREATE TABLE IF NOT EXISTS service_followups (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    booking_id UUID REFERENCES service_bookings(id) ON DELETE CASCADE,
+    reminder_time TIMESTAMP NOT NULL,
+    status TEXT DEFAULT 'scheduled', -- 'scheduled', 'sent', 'cancelled'
+    message TEXT,
     created_at TIMESTAMP DEFAULT NOW()
 );
 

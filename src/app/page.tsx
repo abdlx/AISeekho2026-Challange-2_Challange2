@@ -2,15 +2,91 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, Home, Search, Clock, User, Send, MapPin, CheckCircle2, Activity, ChevronLeft, ReceiptText, BellRing, Navigation2, LogIn, LogOut, Package, Zap } from 'lucide-react';
+import { Menu, Home, Search, Clock, Send, MapPin, CheckCircle2, Activity, ChevronLeft, ReceiptText, BellRing, Navigation2, LogOut, Package, Zap, BarChart3, Languages, XCircle, Cpu } from 'lucide-react';
 import OrchestratorMap from './components/OrchestratorMap';
 import { createClient } from '@/lib/supabase';
 import { signInWithGoogle, signOut } from './actions/auth';
+
+const AGENT_META: Record<string, { label: string; icon: React.ReactNode; color: string; accent: string }> = {
+  linguistic:  { label: 'Linguistic Agent',  icon: <Languages className="w-4 h-4" />,    color: 'text-violet-400',  accent: 'bg-violet-500/10 border-violet-500/20 shadow-[inset_0_0_20px_rgba(167,139,250,0.08)]' },
+  logistics:   { label: 'Logistics Agent',   icon: <MapPin className="w-4 h-4" />,       color: 'text-sky-400',     accent: 'bg-sky-500/10 border-sky-500/20 shadow-[inset_0_0_20px_rgba(56,189,248,0.08)]' },
+  discovery:   { label: 'Discovery Agent',   icon: <Search className="w-4 h-4" />,       color: 'text-amber-400',   accent: 'bg-amber-500/10 border-amber-500/20 shadow-[inset_0_0_20px_rgba(251,191,36,0.08)]' },
+  ranking:     { label: 'Ranking Agent',     icon: <BarChart3 className="w-4 h-4" />,    color: 'text-orange-400',  accent: 'bg-orange-500/10 border-orange-500/20 shadow-[inset_0_0_20px_rgba(251,146,60,0.08)]' },
+  transaction: { label: 'Transaction Agent', icon: <ReceiptText className="w-4 h-4" />,  color: 'text-emerald-400', accent: 'bg-emerald-500/10 border-emerald-500/20 shadow-[inset_0_0_20px_rgba(52,211,153,0.08)]' },
+  followup:    { label: 'Follow-up Agent',   icon: <BellRing className="w-4 h-4" />,     color: 'text-blue-400',    accent: 'bg-blue-500/10 border-blue-500/20 shadow-[inset_0_0_20px_rgba(96,165,250,0.08)]' },
+  success:     { label: 'Completed',         icon: <CheckCircle2 className="w-4 h-4" />, color: 'text-emerald-400', accent: 'bg-emerald-500/10 border-emerald-500/20 shadow-[inset_0_0_20px_rgba(52,211,153,0.08)]' },
+  error:       { label: 'Error',             icon: <XCircle className="w-4 h-4" />,      color: 'text-red-400',     accent: 'bg-red-500/10 border-red-500/20 shadow-[inset_0_0_20px_rgba(248,113,113,0.08)]' },
+};
+
+function AgentTraceCard({ trace, isLast, isActive }: { trace: { step: string; message: string }; isLast: boolean; isActive: boolean }) {
+  const meta = AGENT_META[trace.step] ?? { label: 'Supervisor', icon: <Cpu className="w-4 h-4" />, color: 'text-stone-400', accent: 'bg-white/5 border-white/10' };
+  const isSuccess = trace.step === 'success';
+  const isError = trace.step === 'error';
+
+  return (
+    <div className="relative flex gap-4">
+      {/* Connector line */}
+      {!isLast && (
+        <div className="absolute left-[1.375rem] top-12 bottom-0 w-px bg-gradient-to-b from-white/10 to-transparent" />
+      )}
+
+      {/* Icon node */}
+      <motion.div
+        initial={{ scale: 0.5, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+        className={`relative z-10 flex-shrink-0 mt-3 w-11 h-11 rounded-2xl border flex items-center justify-center ${meta.accent} ${meta.color} transition-all duration-500`}
+      >
+        {isActive && (
+          <span className="absolute -inset-1 rounded-2xl animate-ping opacity-30" style={{ background: 'currentColor' }} />
+        )}
+        {meta.icon}
+      </motion.div>
+
+      {/* Card body */}
+      <motion.div
+        initial={{ opacity: 0, x: -12, filter: 'blur(6px)' }}
+        animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+        transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+        className={`flex-1 mb-3 relative p-4 rounded-2xl border backdrop-blur-3xl ${
+          isError
+            ? 'bg-red-500/5 border-red-500/20'
+            : isSuccess
+            ? 'bg-emerald-500/5 border-emerald-500/20'
+            : 'bg-white/[0.04] border-white/8 hover:bg-white/[0.06]'
+        } transition-all duration-300 shadow-[0_4px_24px_rgba(0,0,0,0.3)]`}
+      >
+        {/* Top accent bar */}
+        <div className={`absolute top-0 left-4 right-4 h-px rounded-full opacity-60 bg-gradient-to-r from-transparent ${isSuccess ? 'via-emerald-500/50' : isError ? 'via-red-500/50' : 'via-white/20'} to-transparent`} />
+
+        <div className="flex items-center justify-between mb-1">
+          <span className={`text-[9px] uppercase tracking-[0.25em] font-bold ${meta.color} opacity-70`}>
+            {meta.label}
+          </span>
+          {isActive && (
+            <span className="flex gap-1 items-center">
+              <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '0ms' }} />
+              <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '150ms' }} />
+              <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '300ms' }} />
+            </span>
+          )}
+          {isSuccess && !isActive && <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+        </div>
+        <p className={`text-sm tracking-tight leading-relaxed ${
+          isSuccess ? 'text-emerald-300/90 font-medium' : isError ? 'text-red-300/90' : 'text-stone-200/90'
+        }`}>
+          {trace.message}
+        </p>
+      </motion.div>
+    </div>
+  );
+}
 
 export default function MobileHome() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [traces, setTraces] = useState<{step: string, message: string}[]>([]);
   const [userInput, setUserInput] = useState('');
   const [userLocation, setUserLocation] = useState("33.6844, 73.0479");
   const [bookingStatus, setBookingStatus] = useState<string>('Confirmed');
@@ -65,8 +141,7 @@ export default function MobileHome() {
       setBookingStatus('Confirmed');
       const t1 = setTimeout(() => setBookingStatus('Provider En Route'), 3000);
       const t2 = setTimeout(() => setBookingStatus('Service Completed'), 6000);
-      const t3 = setTimeout(() => setBookingStatus('Follow-up Reminder Sent'), 9000);
-      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+      return () => { clearTimeout(t1); clearTimeout(t2); };
     }
   }, [result]);
 
@@ -77,6 +152,7 @@ export default function MobileHome() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setTraces([]);
 
     try {
       const response = await fetch('/api/orchestrate', {
@@ -89,12 +165,41 @@ export default function MobileHome() {
         })
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to run agent');
-      setResult(data);
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to run agent');
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+      let buffer = '';
+
+      while (!done && reader) {
+        const { value, done: doneReading } = await reader.read();
+        done = doneReading;
+        if (value) {
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n\n');
+          buffer = lines.pop() || '';
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === 'trace') {
+                setTraces(prev => [...prev, { step: data.step, message: data.message }]);
+              } else if (data.type === 'result') {
+                setResult(data.data);
+                setLoading(false);
+              } else if (data.type === 'error') {
+                throw new Error(data.error);
+              }
+            }
+          }
+        }
+      }
     } catch (err: any) {
       setError(err.message);
-    } finally {
       setLoading(false);
     }
   };
@@ -276,21 +381,64 @@ export default function MobileHome() {
                 )}
               </AnimatePresence>
 
-              {/* Loading State */}
+              {/* Loading State & Traces */}
               <AnimatePresence>
-                {loading && (
+                {loading && traces.length === 0 && (
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="flex-1 flex flex-col items-center justify-center space-y-8"
+                    className="flex-1 flex flex-col items-center justify-center gap-6"
                   >
-                    <div className="relative w-24 h-24">
-                      <div className="absolute inset-0 border-[3px] border-accent/10 rounded-full"></div>
-                      <div className="absolute inset-0 border-[3px] border-accent rounded-full border-t-transparent animate-spin-slow"></div>
-                      <div className="absolute inset-4 border border-accent/20 rounded-full animate-pulse"></div>
+                    {/* Orbital spinner */}
+                    <div className="relative w-20 h-20">
+                      <div className="absolute inset-0 rounded-full border border-white/5" />
+                      <div className="absolute inset-0 rounded-full border-2 border-accent/30 border-t-accent animate-spin" style={{ animationDuration: '1.4s' }} />
+                      <div className="absolute inset-3 rounded-full border border-white/5" />
+                      <div className="absolute inset-3 rounded-full border border-accent/10 border-b-accent/40 animate-spin" style={{ animationDuration: '2s', animationDirection: 'reverse' }} />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Cpu className="w-5 h-5 text-accent/60" />
+                      </div>
                     </div>
-                    <p className="text-accent/80 animate-pulse font-serif italic text-lg tracking-wider">Orchestrating logistics...</p>
+                    <div className="text-center">
+                      <p className="font-serif italic text-foreground/70 text-base tracking-wider">Initializing agents</p>
+                      <p className="text-stone-600 text-xs tracking-widest uppercase mt-1">Multi-agent orchestration</p>
+                    </div>
+                  </motion.div>
+                )}
+                {loading && traces.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex-1 flex flex-col w-full pb-20"
+                  >
+                    {/* Header bar */}
+                    <div className="flex items-center justify-between mb-6">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-[0.3em] text-stone-600 font-bold">Agent Pipeline</p>
+                        <h3 className="font-serif text-lg text-foreground/80 mt-0.5">Orchestrating request</h3>
+                      </div>
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent/10 border border-accent/20">
+                        <span className="relative flex h-1.5 w-1.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75" />
+                          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-accent" />
+                        </span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-accent/80">Live</span>
+                      </div>
+                    </div>
+
+                    {/* Trace cards with connector */}
+                    <div className="flex flex-col">
+                      {traces.map((trace, i) => (
+                        <AgentTraceCard
+                          key={i}
+                          trace={trace}
+                          isLast={i === traces.length - 1}
+                          isActive={i === traces.length - 1}
+                        />
+                      ))}
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -304,7 +452,6 @@ export default function MobileHome() {
                     transition={{ type: 'spring', damping: 25, stiffness: 200 }}
                     className="flex flex-col space-y-6 pb-20"
                   >
-                    {/* ... rest of result UI ... */}
                     {/* Map Card */}
                     <div className="w-full h-[320px] rounded-3xl overflow-hidden border border-white/10 shadow-2xl relative bg-stone-900/50 backdrop-blur-xl">
                       <OrchestratorMap
@@ -312,15 +459,30 @@ export default function MobileHome() {
                         suppliers={mapProviders}
                         selectedSupplierId={null}
                       />
-                      <div className="absolute bottom-4 left-4 right-4 bg-stone-950/90 backdrop-blur-2xl p-4 rounded-2xl border border-white/10 flex items-center gap-4 shadow-2xl transition-all duration-500">
-                        <div className={`p-2.5 rounded-full border ${bookingStatus === 'Confirmed' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' : bookingStatus === 'Provider En Route' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'}`}>
-                          {bookingStatus === 'Confirmed' ? <CheckCircle2 size={18} /> : bookingStatus === 'Provider En Route' ? <Navigation2 size={18} /> : bookingStatus === 'Follow-up Reminder Sent' ? <BellRing size={18} /> : <CheckCircle2 size={18} />}
+                      {/* Only show status overlay when a booking actually exists */}
+                      {result.bookingDetails && (
+                        <div className="absolute bottom-4 left-4 right-4 bg-stone-950/90 backdrop-blur-2xl p-4 rounded-2xl border border-white/10 flex items-center gap-4 shadow-2xl transition-all duration-500">
+                          <div className={`p-2.5 rounded-full border ${bookingStatus === 'Confirmed' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' : bookingStatus === 'Provider En Route' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'}`}>
+                            {bookingStatus === 'Confirmed' ? <CheckCircle2 size={18} /> : bookingStatus === 'Provider En Route' ? <Navigation2 size={18} /> : bookingStatus === 'Follow-up Reminder Sent' ? <BellRing size={18} /> : <CheckCircle2 size={18} />}
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-[10px] text-stone-500 uppercase tracking-[0.2em] font-bold transition-all duration-500">Status Tracker</p>
+                            <p className={`text-sm font-medium transition-all duration-500 ${bookingStatus === 'Confirmed' ? 'text-blue-400/90' : bookingStatus === 'Provider En Route' ? 'text-amber-400/90' : 'text-emerald-400/90'}`}>{bookingStatus}</p>
+                          </div>
                         </div>
-                        <div className="flex-1">
-                          <p className="text-[10px] text-stone-500 uppercase tracking-[0.2em] font-bold transition-all duration-500">Status Tracker</p>
-                          <p className={`text-sm font-medium transition-all duration-500 ${bookingStatus === 'Confirmed' ? 'text-blue-400/90' : bookingStatus === 'Provider En Route' ? 'text-amber-400/90' : 'text-emerald-400/90'}`}>{bookingStatus}</p>
+                      )}
+                      {/* Show warning overlay when no booking was made */}
+                      {!result.bookingDetails && (
+                        <div className="absolute bottom-4 left-4 right-4 bg-stone-950/90 backdrop-blur-2xl p-4 rounded-2xl border border-red-500/20 flex items-center gap-4 shadow-2xl">
+                          <div className="p-2.5 rounded-full border bg-red-500/10 border-red-500/20 text-red-400">
+                            <XCircle size={18} />
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-[10px] text-stone-500 uppercase tracking-[0.2em] font-bold">No Match Found</p>
+                            <p className="text-sm font-medium text-red-400/90">No providers available in this area</p>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
 
                     {/* Booking Receipt Card */}
@@ -341,11 +503,43 @@ export default function MobileHome() {
                             <p className="text-stone-500 text-xs mb-1">Provider</p>
                             <p className="text-stone-200">{result.bookingDetails.provider}</p>
                           </div>
+                          {result.scheduledTime && (
+                            <div className="col-span-2 mt-1">
+                              <p className="text-stone-500 text-xs mb-1">Scheduled Time</p>
+                              <p className="text-stone-200">{new Date(result.scheduledTime).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}</p>
+                            </div>
+                          )}
                           <div className="col-span-2 pt-2 border-t border-white/5">
                             <p className="text-stone-500 text-xs mb-1">Message</p>
                             <p className="text-stone-300 italic">{result.bookingDetails.message}</p>
                           </div>
                         </div>
+                      </div>
+                    )}
+
+                    {/* Follow-up Card */}
+                    {result.followUpDetails && (
+                      <div className="bg-white/5 backdrop-blur-3xl border border-white/10 p-6 rounded-[2rem] shadow-xl flex items-center gap-5">
+                        <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl">
+                          <BellRing size={20} className="text-blue-400" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-stone-500 font-bold mb-1">Follow-up Scheduled</p>
+                          <p className="text-stone-200 text-sm">{result.followUpDetails.message}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Ranking Decision Card */}
+                    {result.rankingReasoning && (
+                      <div className="bg-white/5 backdrop-blur-3xl border border-accent/20 p-7 rounded-[2rem] shadow-2xl relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-emerald-400/60" />
+                        <h3 className="text-[10px] uppercase tracking-[0.2em] text-emerald-400 font-bold mb-4 flex items-center gap-2">
+                          <BarChart3 size={14} /> Ranking Decision
+                        </h3>
+                        <p className="text-stone-300 leading-relaxed text-sm">
+                          {result.rankingReasoning}
+                        </p>
                       </div>
                     )}
 

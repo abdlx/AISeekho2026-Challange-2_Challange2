@@ -1,4 +1,8 @@
-import { google } from '@ai-sdk/google';
+import { createOpenRouter } from '@openrouter/ai-sdk-provider';
+
+const openrouter = createOpenRouter({
+  apiKey: process.env.OPENROUTER_API_KEY,
+});
 import { generateObject } from 'ai';
 import { z } from 'zod';
 
@@ -8,18 +12,23 @@ import { z } from 'zod';
  */
 export async function linguisticAgent(userInput: string) {
   console.log('--- [LINGUISTIC AGENT] Parsing user input ---');
-  
-  const result = await generateObject({
-    model: google('gemini-3-flash-preview'), // Corrected to preview ID // Upgraded to Gemini 3 Flash
-    schema: z.object({
-      intent: z.string().describe('The primary goal (e.g., Book Plumber)'),
-      serviceType: z.string().describe('The type of service requested'),
-      locationName: z.string().nullable().describe('Specific location mentioned in text'),
-      urgency: z.enum(['low', 'medium', 'high', 'emergency']),
-    }),
-    system: 'You are a Linguistic Specialist. Extract structured data from service requests in Urdu, Roman Urdu, or English.',
-    prompt: userInput,
-  });
 
-  return result.object;
+  try {
+    const result = await generateObject({
+      model: openrouter('google/gemini-3.1-flash-lite-preview'), // Corrected to preview ID // Upgraded to Gemini 3 Flash
+      schema: z.object({
+        intent: z.string().describe('The primary goal (e.g., Book Plumber)'),
+        serviceType: z.string().describe('The type of service requested'),
+        locationName: z.string().nullable().describe('Specific location mentioned in text'),
+        urgency: z.enum(['low', 'medium', 'high', 'emergency']),
+        scheduledTime: z.string().nullable().describe('Requested time/date in ISO format or natural language (e.g. "tomorrow morning", "2026-05-16T09:00", "kal subah 10 baje"). Null if not mentioned.'),
+      }),
+      system: 'You are a Linguistic Specialist. Extract structured data from service requests in Urdu, Roman Urdu, or English. Pay special attention to time phrases (e.g., "kal subah", "abhi", "3 baje") and locations.',
+      prompt: userInput,
+    });
+
+    return { success: true, data: result.object };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Unknown error in Linguistic Agent' };
+  }
 }
