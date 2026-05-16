@@ -2,20 +2,20 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, Home, Search, Clock, Send, MapPin, CheckCircle2, Activity, ChevronLeft, ReceiptText, BellRing, Navigation2, LogOut, Package, Zap, BarChart3, Languages, XCircle, Cpu, Settings } from 'lucide-react';
+import { Menu, Home, Search, Clock, Send, MapPin, CheckCircle2, Activity, ChevronLeft, ReceiptText, BellRing, Navigation2, LogOut, Package, Zap, BarChart3, Languages, XCircle, Cpu, Settings, Info } from 'lucide-react';
 import OrchestratorMap from './components/OrchestratorMap';
 import { createClient } from '@/lib/supabase';
 import { signInWithGoogle, signOut } from './actions/auth';
 
 const AGENT_META: Record<string, { label: string; icon: React.ReactNode; color: string; accent: string }> = {
-  linguistic:  { label: 'Linguistic Agent',  icon: <Languages className="w-4 h-4" />,    color: 'text-violet-400',  accent: 'bg-violet-500/10 border-violet-500/20 shadow-[inset_0_0_20px_rgba(167,139,250,0.08)]' },
-  logistics:   { label: 'Logistics Agent',   icon: <MapPin className="w-4 h-4" />,       color: 'text-sky-400',     accent: 'bg-sky-500/10 border-sky-500/20 shadow-[inset_0_0_20px_rgba(56,189,248,0.08)]' },
-  discovery:   { label: 'Discovery Agent',   icon: <Search className="w-4 h-4" />,       color: 'text-amber-400',   accent: 'bg-amber-500/10 border-amber-500/20 shadow-[inset_0_0_20px_rgba(251,191,36,0.08)]' },
-  ranking:     { label: 'Ranking Agent',     icon: <BarChart3 className="w-4 h-4" />,    color: 'text-orange-400',  accent: 'bg-orange-500/10 border-orange-500/20 shadow-[inset_0_0_20px_rgba(251,146,60,0.08)]' },
-  transaction: { label: 'Transaction Agent', icon: <ReceiptText className="w-4 h-4" />,  color: 'text-emerald-400', accent: 'bg-emerald-500/10 border-emerald-500/20 shadow-[inset_0_0_20px_rgba(52,211,153,0.08)]' },
-  followup:    { label: 'Follow-up Agent',   icon: <BellRing className="w-4 h-4" />,     color: 'text-blue-400',    accent: 'bg-blue-500/10 border-blue-500/20 shadow-[inset_0_0_20px_rgba(96,165,250,0.08)]' },
-  success:     { label: 'Completed',         icon: <CheckCircle2 className="w-4 h-4" />, color: 'text-emerald-400', accent: 'bg-emerald-500/10 border-emerald-500/20 shadow-[inset_0_0_20px_rgba(52,211,153,0.08)]' },
-  error:       { label: 'Error',             icon: <XCircle className="w-4 h-4" />,      color: 'text-red-400',     accent: 'bg-red-500/10 border-red-500/20 shadow-[inset_0_0_20px_rgba(248,113,113,0.08)]' },
+  linguistic: { label: 'Linguistic Agent', icon: <Languages className="w-4 h-4" />, color: 'text-violet-400', accent: 'bg-violet-500/10 border-violet-500/20 shadow-[inset_0_0_20px_rgba(167,139,250,0.08)]' },
+  logistics: { label: 'Logistics Agent', icon: <MapPin className="w-4 h-4" />, color: 'text-sky-400', accent: 'bg-sky-500/10 border-sky-500/20 shadow-[inset_0_0_20px_rgba(56,189,248,0.08)]' },
+  discovery: { label: 'Discovery Agent', icon: <Search className="w-4 h-4" />, color: 'text-amber-400', accent: 'bg-amber-500/10 border-amber-500/20 shadow-[inset_0_0_20px_rgba(251,191,36,0.08)]' },
+  ranking: { label: 'Ranking Agent', icon: <BarChart3 className="w-4 h-4" />, color: 'text-orange-400', accent: 'bg-orange-500/10 border-orange-500/20 shadow-[inset_0_0_20px_rgba(251,146,60,0.08)]' },
+  transaction: { label: 'Transaction Agent', icon: <ReceiptText className="w-4 h-4" />, color: 'text-emerald-400', accent: 'bg-emerald-500/10 border-emerald-500/20 shadow-[inset_0_0_20px_rgba(52,211,153,0.08)]' },
+  followup: { label: 'Follow-up Agent', icon: <BellRing className="w-4 h-4" />, color: 'text-blue-400', accent: 'bg-blue-500/10 border-blue-500/20 shadow-[inset_0_0_20px_rgba(96,165,250,0.08)]' },
+  success: { label: 'Completed', icon: <CheckCircle2 className="w-4 h-4" />, color: 'text-emerald-400', accent: 'bg-emerald-500/10 border-emerald-500/20 shadow-[inset_0_0_20px_rgba(52,211,153,0.08)]' },
+  error: { label: 'Error', icon: <XCircle className="w-4 h-4" />, color: 'text-red-400', accent: 'bg-red-500/10 border-red-500/20 shadow-[inset_0_0_20px_rgba(248,113,113,0.08)]' },
 };
 
 function AgentTraceCard({ trace, isLast, isActive }: { trace: { step: string; message: string }; isLast: boolean; isActive: boolean }) {
@@ -48,13 +48,12 @@ function AgentTraceCard({ trace, isLast, isActive }: { trace: { step: string; me
         initial={{ opacity: 0, x: -12, filter: 'blur(6px)' }}
         animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
         transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-        className={`flex-1 mb-3 relative p-4 rounded-2xl border backdrop-blur-3xl ${
-          isError
+        className={`flex-1 mb-3 relative p-4 rounded-2xl border backdrop-blur-3xl ${isError
             ? 'bg-red-500/5 border-red-500/20'
             : isSuccess
-            ? 'bg-emerald-500/5 border-emerald-500/20'
-            : 'bg-white/[0.04] border-white/8 hover:bg-white/[0.06]'
-        } transition-all duration-300 shadow-[0_4px_24px_rgba(0,0,0,0.3)]`}
+              ? 'bg-emerald-500/5 border-emerald-500/20'
+              : 'bg-white/[0.04] border-white/8 hover:bg-white/[0.06]'
+          } transition-all duration-300 shadow-[0_4px_24px_rgba(0,0,0,0.3)]`}
       >
         {/* Top accent bar */}
         <div className={`absolute top-0 left-4 right-4 h-px rounded-full opacity-60 bg-gradient-to-r from-transparent ${isSuccess ? 'via-emerald-500/50' : isError ? 'via-red-500/50' : 'via-white/20'} to-transparent`} />
@@ -72,9 +71,8 @@ function AgentTraceCard({ trace, isLast, isActive }: { trace: { step: string; me
           )}
           {isSuccess && !isActive && <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
         </div>
-        <p className={`text-sm tracking-tight leading-relaxed ${
-          isSuccess ? 'text-emerald-300/90 font-medium' : isError ? 'text-red-300/90' : 'text-stone-200/90'
-        }`}>
+        <p className={`text-sm tracking-tight leading-relaxed ${isSuccess ? 'text-emerald-300/90 font-medium' : isError ? 'text-red-300/90' : 'text-stone-200/90'
+          }`}>
           {trace.message}
         </p>
       </motion.div>
@@ -86,7 +84,7 @@ export default function MobileHome() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-  const [traces, setTraces] = useState<{step: string, message: string}[]>([]);
+  const [traces, setTraces] = useState<{ step: string, message: string }[]>([]);
   const [userInput, setUserInput] = useState('');
   const [userLocation, setUserLocation] = useState("33.6844, 73.0479");
   const [bookingStatus, setBookingStatus] = useState<string>('Confirmed');
@@ -95,10 +93,11 @@ export default function MobileHome() {
   const [activeTab, setActiveTab] = useState('home');
   const [showMenu, setShowMenu] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
+  const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
-    
+
     // Initial check
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -124,9 +123,37 @@ export default function MobileHome() {
     const supabase = createClient();
     const { data } = await supabase
       .from('service_bookings')
-      .select('*, service_providers(name)')
+      .select('*, service_providers(name, location, rating)')
       .order('created_at', { ascending: false });
     setHistory(data || []);
+  };
+
+  const handleViewPastBooking = (item: any) => {
+    setResult({
+      status: 'success',
+      insight: `Viewing past booking for ${item.service_type}. This service was previously coordinated by the AISO agents.`,
+      actionChainExecuted: ['find_providers', 'rank_providers', 'book_provider'],
+      targetLocation: item.customer_location,
+      userLocation: item.customer_location,
+      providers: [],
+      rankingReasoning: `Historical record: ${item.service_providers?.name} was selected based on proximity and rating (${item.service_providers?.rating || 4.5}★).`,
+      bookingDetails: {
+        confirmationCode: item.id.slice(0, 8).toUpperCase(),
+        provider: item.service_providers?.name,
+        providerName: item.service_providers?.name,
+        providerLocation: item.service_providers?.location,
+        bookingId: item.id,
+        scheduledTime: item.scheduled_time,
+        message: 'This is a past booking retrieved from your history.',
+        status: item.status,
+      },
+      metrics: {
+        latencyMs: 0,
+        providerFound: true,
+        bookingConfirmed: true,
+      },
+    });
+    setActiveTab('home');
   };
 
   useEffect(() => {
@@ -183,7 +210,7 @@ export default function MobileHome() {
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n\n');
           buffer = lines.pop() || '';
-          
+
           for (const line of lines) {
             if (line.startsWith('data: ')) {
               const data = JSON.parse(line.slice(6));
@@ -211,7 +238,7 @@ export default function MobileHome() {
   if (authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <motion.div 
+        <motion.div
           animate={{ scale: [1, 1.1, 1], opacity: [0.3, 0.6, 0.3] }}
           transition={{ duration: 2, repeat: Infinity }}
           className="w-16 h-16 bg-accent/20 rounded-full blur-xl"
@@ -231,34 +258,35 @@ export default function MobileHome() {
         />
         <div className="absolute inset-0 z-0 bg-stone-950/40 backdrop-blur-[2px]" />
         <div className="absolute inset-0 z-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
-        
-        <motion.div 
+
+        <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8, ease: [0.23, 1, 0.32, 1] }}
           className="w-full max-w-md bg-white/5 border border-white/10 backdrop-blur-[32px] rounded-[3rem] p-12 text-center relative z-10 shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
         >
           <div className="w-24 h-24 bg-accent/10 border border-accent/20 rounded-[2rem] flex items-center justify-center mx-auto mb-10 shadow-[inset_0_0_30px_rgba(202,138,4,0.1)] relative">
-             <div className="absolute inset-0 bg-accent/20 blur-2xl rounded-full" />
-             <Zap className="w-12 h-12 text-accent relative z-10" />
+            <div className="absolute inset-0 bg-accent/20 blur-2xl rounded-full" />
+            <Zap className="w-12 h-12 text-accent relative z-10" />
           </div>
-          
-          <h1 className="text-4xl font-serif text-white mb-4 tracking-tight">Antigravity</h1>
+
+          <h1 className="text-4xl font-serif text-white mb-4 tracking-tight">AISO</h1>
           <p className="text-white/40 mb-12 text-lg font-light tracking-wide">
             Secure agentic service <br />
             <span className="italic font-serif text-accent/80">orchestration for Karachi</span>
           </p>
-          
-          <button 
+
+          <motion.button
             onClick={signInWithGoogle}
+            whileTap={{ scale: 0.96 }}
             className="w-full h-16 bg-white/10 hover:bg-white/15 border border-white/10 backdrop-blur-xl text-white rounded-[1.5rem] font-medium text-lg flex items-center justify-center gap-4 transition-all active:scale-[0.98] group"
           >
             <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
               <img src="https://www.google.com/favicon.ico" className="w-4 h-4" alt="Google" />
             </div>
             Continue with Google
-          </button>
-          
+          </motion.button>
+
           <div className="mt-12 pt-10 border-t border-white/5 flex flex-col gap-2">
             <span className="text-[10px] uppercase tracking-[0.3em] text-white/20 font-bold">#AISeekho2026 Challenge 2</span>
             <span className="text-[10px] uppercase tracking-[0.2em] text-accent/40 font-bold">Secure Orchestration Layer</span>
@@ -279,53 +307,84 @@ export default function MobileHome() {
       <div className="absolute inset-0 z-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
 
       {/* Header */}
-      <header className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between p-6 pt-12">
-        <div className="flex items-center gap-3">
-          {result && (
-            <button onClick={() => { setResult(null); setUserInput(''); }} className="p-2 -ml-2 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-xl border border-white/10 transition-all active:scale-95">
-              <ChevronLeft size={20} className="text-foreground" />
-            </button>
+      <header className="absolute top-0 left-0 right-0 z-20 pointer-events-none">
+        {/* Premium Liquid Glass Background */}
+        <div 
+          className={`absolute inset-0 transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] ${scrolled ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}
+        >
+          {/* Main Translucent Blur Layer */}
+          <div className="absolute inset-0 bg-stone-950/40 backdrop-blur-[32px] saturate-[180%] [mask-image:linear-gradient(to_bottom,black_60%,transparent_100%)] [-webkit-mask-image:linear-gradient(to_bottom,black_60%,transparent_100%)]" />
+          {/* Subtle Inner Glow & Noise (Overlay) */}
+          <div className="absolute inset-0 bg-gradient-to-b from-white/[0.04] to-transparent mix-blend-overlay [mask-image:linear-gradient(to_bottom,black_60%,transparent_100%)] [-webkit-mask-image:linear-gradient(to_bottom,black_60%,transparent_100%)]" />
+          {/* Dynamic Top Edge Highlight */}
+          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/[0.15] to-transparent opacity-50" />
+        </div>
+        
+        <div className="relative flex items-center justify-between px-6 pt-12 pb-8 pointer-events-auto">
+          <div className="flex items-center gap-3">
+          {(result || activeTab !== 'home') && (
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => { if (result) { setResult(null); setUserInput(''); } else { setActiveTab('home'); } }}
+              className="p-2 -ml-2 rounded-full bg-stone-900/30 hover:bg-stone-800/50 backdrop-blur-2xl saturate-[1.5] border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-300"
+            >
+              <ChevronLeft size={20} className="text-white/90" />
+            </motion.button>
           )}
-          <h1 className="text-xl font-serif tracking-tight text-foreground/90">
-            {result ? 'Booking Details' : 'Antigravity'}
+          <h1 className="text-xl font-serif tracking-tight text-white/90 drop-shadow-[0_2px_10px_rgba(255,255,255,0.1)]">
+            {result ? 'Booking Details' : activeTab === 'orders' ? 'Past Orders' : activeTab === 'alerts' ? 'Notifications' : activeTab === 'settings' ? 'Discovery & Settings' : 'AISO'}
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          {user && (
-            <div className="w-10 h-10 rounded-full border border-white/10 p-0.5 overflow-hidden backdrop-blur-xl bg-white/5">
-              <img 
-                src={user.user_metadata.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`} 
-                className="w-full h-full rounded-full object-cover" 
-                alt="profile" 
+          {user && activeTab === 'home' && !result && (
+            <div className="relative w-10 h-10 rounded-full border border-white/[0.15] p-0.5 overflow-hidden backdrop-blur-2xl bg-stone-900/30 shadow-[0_8px_32px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.1)]">
+              <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent mix-blend-overlay" />
+              <img
+                src={user.user_metadata.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`}
+                className="w-full h-full rounded-full object-cover relative z-10"
+                alt="profile"
               />
             </div>
           )}
-          <button 
-            onClick={() => setShowMenu(true)}
-            className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-xl border border-white/10 transition-all active:scale-95"
-          >
-            <Menu size={20} className="text-foreground/80" />
-          </button>
+          {!result && activeTab === 'home' && (
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setShowMenu(true)}
+              className="p-2.5 rounded-full bg-stone-900/30 hover:bg-stone-800/50 backdrop-blur-2xl saturate-[1.5] border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-300 group"
+            >
+              <Menu size={20} className="text-white/80 group-hover:text-white transition-colors" />
+            </motion.button>
+          )}
+        </div>
         </div>
       </header>
 
       {/* Main Content Area */}
-      <main className="relative z-10 flex flex-col h-full pt-32 pb-40 px-6 overflow-y-auto custom-scrollbar">
+      <main 
+        onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 20)}
+        className="relative z-10 flex flex-col h-full pt-32 pb-40 px-6 overflow-y-auto custom-scrollbar"
+      >
 
         {/* Orders History Tab */}
-        <AnimatePresence>
+        <AnimatePresence mode="wait">
           {activeTab === 'orders' && (
             <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
+              key="orders-tab"
+              initial={{ opacity: 0, x: 50, filter: 'blur(10px)' }}
+              animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, x: -50, filter: 'blur(10px)' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className="flex flex-col space-y-4 pb-20"
             >
-              <h2 className="text-3xl font-serif text-foreground mb-4">Past Orders</h2>
+              {/* Header title now handles "Past Orders" */}
               {history.length > 0 ? history.map((item) => (
-                <div key={item.id} className="bg-white/5 backdrop-blur-3xl border border-white/10 p-5 rounded-3xl shadow-xl flex items-center justify-between">
+                <button
+                  key={item.id}
+                  onClick={() => handleViewPastBooking(item)}
+                  className="w-full text-left bg-white/5 backdrop-blur-3xl border border-white/10 p-5 rounded-3xl shadow-xl flex items-center justify-between hover:bg-white/10 transition-all active:scale-[0.98] group"
+                >
                   <div className="flex items-center gap-4">
-                    <div className="p-3 bg-accent/10 rounded-2xl">
+                    <div className="p-3 bg-accent/10 rounded-2xl group-hover:scale-110 transition-transform">
                       <Package size={24} className="text-accent" />
                     </div>
                     <div>
@@ -337,7 +396,7 @@ export default function MobileHome() {
                     <p className="text-accent font-bold">PKR {item.total_cost_pkr}</p>
                     <p className="text-[10px] uppercase tracking-wider text-emerald-400">{item.status}</p>
                   </div>
-                </div>
+                </button>
               )) : (
                 <div className="text-center py-20 text-stone-500">
                   <Clock size={40} className="mx-auto mb-4 opacity-20" />
@@ -348,10 +407,145 @@ export default function MobileHome() {
           )}
         </AnimatePresence>
 
+        {/* Alerts & Notifications Tab */}
+        <AnimatePresence mode="wait">
+          {activeTab === 'alerts' && (
+            <motion.div
+              key="alerts-tab"
+              initial={{ opacity: 0, x: 50, filter: 'blur(10px)' }}
+              animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, x: -50, filter: 'blur(10px)' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="flex flex-col pb-20"
+            >
+              <div className="flex justify-end mb-6">
+                <span className="px-3 py-1 rounded-full bg-accent/10 border border-accent/20 text-[10px] font-bold text-accent uppercase tracking-widest">
+                  {result?.followUpDetails ? '1 New' : 'Inbox'}
+                </span>
+              </div>
+
+              <div className="space-y-4">
+                {/* AI-Generated Booking Alert (Dynamic) */}
+                {result?.followUpDetails && (
+                  <NotificationItem
+                    icon={<BellRing className="w-5 h-5 text-blue-400" />}
+                    title="Follow-up Scheduled"
+                    message={result.followUpDetails.message}
+                    time="Just now"
+                    type="ai"
+                  />
+                )}
+
+                {/* Safety/System Alerts (Static but themed) */}
+                <NotificationItem
+                  icon={<CheckCircle2 className="w-5 h-5 text-emerald-400" />}
+                  title="Welcome to AISO"
+                  message="Your secure AISO orchestration layer is active. We're ready to find your first provider."
+                  time="2h ago"
+                />
+
+                <NotificationItem
+                  icon={<Zap className="w-5 h-5 text-amber-400" />}
+                  title="Safety Tip"
+                  message="Always ask for the provider's verification code before allowing them to start work."
+                  time="5h ago"
+                />
+
+                {!result?.followUpDetails && (
+                  <div className="pt-10 text-center opacity-20">
+                    <BellRing size={40} className="mx-auto mb-4" />
+                    <p className="text-sm font-light">No other notifications</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Settings & Discovery Tab */}
+        <AnimatePresence mode="wait">
+          {activeTab === 'settings' && (
+            <motion.div
+              key="settings-tab"
+              initial={{ opacity: 0, x: 50, filter: 'blur(10px)' }}
+              animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, x: -50, filter: 'blur(10px)' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="flex flex-col pb-20"
+            >
+              {/* Header title now handles "Discovery & Settings" */}
+
+              {/* Category Grid */}
+              <div className="grid grid-cols-2 gap-4 mb-10">
+                <CategoryCard icon={<Zap className="w-6 h-6" />} label="Electrician" color="bg-amber-500/10 text-amber-400" onClick={() => { setUserInput("I need an electrician near me"); setActiveTab('home'); }} />
+                <CategoryCard icon={<MapPin className="w-6 h-6" />} label="Plumber" color="bg-blue-500/10 text-blue-400" onClick={() => { setUserInput("Find a plumber in my area"); setActiveTab('home'); }} />
+                <CategoryCard icon={<Cpu className="w-6 h-6" />} label="AC Repair" color="bg-sky-500/10 text-sky-400" onClick={() => { setUserInput("Need AC technician for G-13"); setActiveTab('home'); }} />
+                <CategoryCard icon={<Activity className="w-6 h-6" />} label="Gas Fitter" color="bg-red-500/10 text-red-400" onClick={() => { setUserInput("Gas fitter required for kitchen stove"); setActiveTab('home'); }} />
+              </div>
+
+              {/* Discovery Prompts */}
+              <div className="space-y-4 mb-10">
+                <h3 className="text-[10px] uppercase tracking-[0.3em] text-stone-500 font-bold px-1">Try Asking</h3>
+                <div className="flex flex-col gap-3">
+                  <PromptButton text="“Kal subah plumber bhej dein”" onClick={() => { setUserInput("Kal subah plumber bhej dein"); setActiveTab('home'); }} />
+                  <PromptButton text="“AC service near DHA Phase 6”" onClick={() => { setUserInput("AC service near DHA Phase 6"); setActiveTab('home'); }} />
+                  <PromptButton text="“Emergency electrician needed now”" onClick={() => { setUserInput("Emergency electrician needed now"); setActiveTab('home'); }} />
+                </div>
+              </div>
+
+              {/* Profile & Account Section */}
+              <div className="space-y-4">
+                <h3 className="text-[10px] uppercase tracking-[0.3em] text-stone-500 font-bold px-1">Account</h3>
+                <div className="p-6 rounded-3xl bg-white/5 border border-white/10 flex flex-col gap-6">
+                  <div className="flex items-center gap-4">
+                    <img
+                      src={user?.user_metadata.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email}`}
+                      className="w-12 h-12 rounded-full border border-white/10 shadow-lg"
+                      alt="profile"
+                    />
+                    <div className="overflow-hidden">
+                      <p className="text-base font-medium text-white truncate">{user?.user_metadata.full_name}</p>
+                      <p className="text-xs text-stone-500 truncate">{user?.email}</p>
+                    </div>
+                  </div>
+
+                  <div className="h-px bg-white/5" />
+
+                  <button
+                    onClick={() => signOut()}
+                    className="flex items-center justify-center gap-3 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-all active:scale-95"
+                  >
+                    <LogOut size={20} />
+                    <span className="text-sm font-bold">Sign Out</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Language Support Badge */}
+              <div className="mt-10 p-6 rounded-3xl bg-accent/5 border border-accent/10 flex items-center gap-4">
+                <div className="p-3 bg-accent/10 rounded-2xl">
+                  <Languages className="w-6 h-6 text-accent" />
+                </div>
+                <div>
+                  <p className="text-stone-200 text-sm font-medium">Multilingual Support</p>
+                  <p className="text-stone-500 text-xs">Chat in Urdu, Roman Urdu, or English.</p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Home Tab */}
-        <AnimatePresence>
+        <AnimatePresence mode="wait">
           {activeTab === 'home' && (
-            <div className="flex-1 flex flex-col">
+            <motion.div
+              key="home-tab"
+              initial={{ opacity: 0, x: -50, filter: 'blur(10px)' }}
+              animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, x: 50, filter: 'blur(10px)' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="flex-1 flex flex-col"
+            >
               {/* Initial Clean State */}
               <AnimatePresence>
                 {!loading && !result && (
@@ -502,8 +696,8 @@ export default function MobileHome() {
                             <div className="col-span-2 mt-1">
                               <p className="text-stone-500 text-xs mb-1">Scheduled Time</p>
                               <p className="text-stone-200">
-                                {result.scheduledTime === 'Now' 
-                                  ? 'Immediate Arrival' 
+                                {result.scheduledTime === 'Now'
+                                  ? 'Immediate Arrival'
                                   : isNaN(new Date(result.scheduledTime).getTime())
                                     ? result.scheduledTime
                                     : new Date(result.scheduledTime).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })
@@ -576,7 +770,7 @@ export default function MobileHome() {
                   </motion.div>
                 )}
               </AnimatePresence>
-            </div>
+            </motion.div>
           )}
         </AnimatePresence>
 
@@ -608,36 +802,17 @@ export default function MobileHome() {
                 onChange={(e) => setUserInput(e.target.value)}
                 disabled={loading}
                 placeholder="Type your request here..."
-                className="w-full bg-white/5 backdrop-blur-[32px] border border-white/10 text-foreground placeholder-stone-500 rounded-3xl py-5 pl-14 pr-16 shadow-[0_20px_50px_rgba(0,0,0,0.5)] focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 transition-all disabled:opacity-50 font-sans tracking-tight"
+                className="w-full bg-stone-900/30 backdrop-blur-[32px] saturate-[180%] border border-white/[0.08] text-white placeholder-stone-500 rounded-3xl py-5 pl-14 pr-16 shadow-[0_16px_40px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.1)] focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 transition-all disabled:opacity-50 font-sans tracking-tight"
               />
-              <button
+              <motion.button
                 type="submit"
+                whileTap={{ scale: 0.85 }}
                 disabled={loading || !userInput.trim()}
-                className="absolute inset-y-2.5 right-2.5 aspect-square bg-accent hover:bg-accent/90 disabled:bg-stone-800 disabled:text-stone-500 text-stone-950 rounded-2xl flex items-center justify-center transition-all active:scale-90 shadow-xl"
+                className="absolute inset-y-2.5 right-2.5 aspect-square bg-accent hover:bg-accent/90 disabled:bg-stone-800 disabled:text-stone-500 text-stone-950 rounded-2xl flex items-center justify-center transition-all shadow-[0_4px_20px_rgba(202,138,4,0.3),inset_0_1px_0_rgba(255,255,255,0.3)] disabled:shadow-none"
               >
                 <Send size={18} className={userInput.trim() ? "ml-0.5" : ""} />
-              </button>
+              </motion.button>
             </form>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Floating Bottom Navbar */}
-      <AnimatePresence>
-        {showNav && (
-          <motion.div
-            initial={{ y: 100, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 100, opacity: 0 }}
-            transition={{ type: 'spring', damping: 30, stiffness: 150 }}
-            className="absolute bottom-8 left-1/2 -translate-x-1/2 z-40"
-          >
-            <div className="flex items-center gap-1 px-2 py-2 bg-stone-900/40 backdrop-blur-[32px] border border-white/10 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
-              <NavButton icon={<Home size={20} />} active={activeTab === 'home'} onClick={() => setActiveTab('home')} />
-              <NavButton icon={<Search size={20} />} active={activeTab === 'search'} onClick={() => setActiveTab('search')} />
-              <NavButton icon={<Package size={20} />} active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} />
-              <NavButton icon={<BellRing size={20} />} active={activeTab === 'alerts'} onClick={() => setActiveTab('alerts')} />
-            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -661,35 +836,32 @@ export default function MobileHome() {
               className="absolute top-0 right-0 bottom-0 w-[80%] max-w-sm z-[101] bg-stone-950/80 backdrop-blur-3xl border-l border-white/10 p-8 flex flex-col"
             >
               <div className="flex justify-between items-center mb-12">
-                <h2 className="text-2xl font-serif text-white">Menu</h2>
+                <h2 className="text-2xl font-serif text-white">Navigation</h2>
                 <button onClick={() => setShowMenu(false)} className="p-2 rounded-full bg-white/5 border border-white/10">
                   <XCircle size={20} className="text-white/40" />
                 </button>
               </div>
 
               <div className="flex-1 flex flex-col gap-2">
-                <MenuItem icon={<Home className="w-5 h-5" />} label="Home" onClick={() => { setActiveTab('home'); setShowMenu(false); }} />
-                <MenuItem icon={<Package className="w-5 h-5" />} label="My Bookings" onClick={() => { setActiveTab('orders'); setShowMenu(false); }} />
-                <MenuItem icon={<Zap className="w-5 h-5" />} label="Emergency Help" />
-                <MenuItem icon={<MapPin className="w-5 h-5" />} label="Saved Locations" />
-                <div className="h-px bg-white/5 my-4" />
-                <MenuItem icon={<Settings className="w-5 h-5" />} label="Settings" />
-                <MenuItem icon={<BellRing className="w-5 h-5" />} label="Notifications" onClick={() => { setActiveTab('alerts'); setShowMenu(false); }} />
+                <MenuItem icon={<Home className="w-5 h-5" />} label="Home Chat" active={activeTab === 'home'} onClick={() => { setActiveTab('home'); setShowMenu(false); }} />
+                <MenuItem icon={<Package className="w-5 h-5" />} label="Booking History" active={activeTab === 'orders'} onClick={() => { setActiveTab('orders'); setShowMenu(false); }} />
+                <MenuItem icon={<BellRing className="w-5 h-5" />} label="Notifications" active={activeTab === 'alerts'} onClick={() => { setActiveTab('alerts'); setShowMenu(false); }} />
+                <MenuItem icon={<Settings className="w-5 h-5" />} label="Discovery & Settings" active={activeTab === 'settings'} onClick={() => { setActiveTab('settings'); setShowMenu(false); }} />
               </div>
 
               <div className="mt-auto pt-8 border-t border-white/5 flex flex-col gap-4">
                 <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5">
-                  <img 
-                    src={user?.user_metadata.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email}`} 
-                    className="w-10 h-10 rounded-full border border-white/10" 
-                    alt="profile" 
+                  <img
+                    src={user?.user_metadata.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email}`}
+                    className="w-10 h-10 rounded-full border border-white/10 shadow-lg"
+                    alt="profile"
                   />
                   <div className="overflow-hidden">
                     <p className="text-sm font-medium text-white truncate">{user?.user_metadata.full_name}</p>
                     <p className="text-[10px] text-stone-500 truncate">{user?.email}</p>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={() => { signOut(); setShowMenu(false); }}
                   className="flex items-center gap-3 p-3 rounded-2xl text-red-400 hover:bg-red-500/10 transition-colors"
                 >
@@ -702,6 +874,7 @@ export default function MobileHome() {
         )}
       </AnimatePresence>
 
+
     </div>
   );
 }
@@ -713,17 +886,63 @@ function NavButton({ icon, active = false, onClick }: { icon: React.ReactNode, a
     </button>
   );
 }
-
-function MenuItem({ icon, label, onClick }: { icon: React.ReactNode, label: string, onClick?: () => void }) {
+function MenuItem({ icon, label, active = false, onClick }: { icon: React.ReactNode, label: string, active?: boolean, onClick?: () => void }) {
   return (
-    <button 
+    <motion.button
       onClick={onClick}
-      className="flex items-center gap-4 p-4 rounded-2xl text-stone-400 hover:text-white hover:bg-white/5 transition-all group"
+      whileTap={{ scale: 0.98, x: -4 }}
+      className={`flex items-center gap-4 p-4 rounded-2xl transition-all group ${active ? 'bg-accent/10 text-accent shadow-[inset_0_0_20px_rgba(202,138,4,0.05)]' : 'text-stone-400 hover:text-white hover:bg-white/5'}`}
     >
-      <div className="p-2 rounded-xl bg-white/5 group-hover:bg-accent/10 group-hover:text-accent transition-colors">
+      <div className={`p-2 rounded-xl transition-colors ${active ? 'bg-accent/10' : 'bg-white/5 group-hover:bg-accent/10 group-hover:text-accent'}`}>
         {icon}
       </div>
       <span className="font-medium tracking-tight">{label}</span>
+    </motion.button>
+  );
+}
+
+
+function CategoryCard({ icon, label, color, onClick }: { icon: React.ReactNode, label: string, color: string, onClick?: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex flex-col items-center gap-3 p-6 rounded-[2.5rem] bg-white/5 border border-white/10 hover:border-white/20 transition-all active:scale-95 group"
+    >
+      <div className={`p-4 rounded-2xl ${color} transition-transform group-hover:scale-110`}>
+        {icon}
+      </div>
+      <span className="text-xs font-medium text-stone-400 group-hover:text-stone-200">{label}</span>
     </button>
+  );
+}
+
+function PromptButton({ text, onClick }: { text: string, onClick?: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-left p-5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-accent/30 transition-all flex items-center justify-between group"
+    >
+      <span className="text-sm text-stone-300 group-hover:text-white transition-colors">{text}</span>
+      <ChevronLeft className="w-4 h-4 text-stone-600 rotate-180 group-hover:text-accent transition-colors" />
+    </button>
+  );
+}
+
+function NotificationItem({ icon, title, message, time, type = 'system' }: { icon: React.ReactNode, title: string, message: string, time: string, type?: 'ai' | 'system' }) {
+  return (
+    <div className={`p-5 rounded-3xl border backdrop-blur-3xl transition-all ${type === 'ai' ? 'bg-accent/5 border-accent/20 shadow-[inset_0_0_20px_rgba(202,138,4,0.05)]' : 'bg-white/5 border-white/10'}`}>
+      <div className="flex gap-4">
+        <div className={`flex-shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center border ${type === 'ai' ? 'bg-accent/10 border-accent/20' : 'bg-white/5 border-white/10'}`}>
+          {icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between mb-1">
+            <h4 className={`text-sm font-semibold truncate ${type === 'ai' ? 'text-accent' : 'text-stone-200'}`}>{title}</h4>
+            <span className="text-[10px] text-stone-500 font-medium">{time}</span>
+          </div>
+          <p className="text-xs text-stone-400 leading-relaxed line-clamp-2">{message}</p>
+        </div>
+      </div>
+    </div>
   );
 }
