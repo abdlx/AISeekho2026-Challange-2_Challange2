@@ -37,7 +37,20 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${geistSans.variable} ${geistMono.variable} ${playfair.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window._env_ = {
+                NEXT_PUBLIC_SUPABASE_URL: "${process.env.NEXT_PUBLIC_SUPABASE_URL || ''}",
+                NEXT_PUBLIC_SUPABASE_ANON_KEY: "${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''}",
+                NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: "${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''}",
+              }
+            `,
+          }}
+        />
+        {children}
+      </body>
     </html>
   );
 }

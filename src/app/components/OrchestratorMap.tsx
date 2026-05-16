@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { importLibrary, setOptions } from '@googlemaps/js-api-loader';
+import { getEnv } from '@/lib/env';
 
 interface OrchestratorMapProps {
   userLocation?: string;       // "lat, lng" — the customer
@@ -66,7 +67,7 @@ export default function OrchestratorMap({
 
   // Load Maps SDK once
   useEffect(() => {
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    const apiKey = getEnv('NEXT_PUBLIC_GOOGLE_MAPS_API_KEY');
     if (!apiKey || apiKey === 'your_google_maps_api_key_here') {
       setMapError('Maps API key not configured.');
       return;
@@ -177,7 +178,7 @@ export default function OrchestratorMap({
 
       // ─── ROUTE ───────────────────────────────────────────────────────
       if (bookingConfirmed) {
-        const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+        const apiKey = getEnv('NEXT_PUBLIC_GOOGLE_MAPS_API_KEY');
         
         fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
           method: 'POST',
