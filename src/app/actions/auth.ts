@@ -8,27 +8,28 @@ export async function signInWithGoogle() {
   const supabase = await createClientAsync();
 
   if (isCapacitor) {
-    try {
-      // Fetch client ID at runtime from our server — env vars in capacitor.config.ts
-      // are evaluated at sync time and will always be empty in Cloud Run.
-      const config = await fetch('/api/config').then(r => r.json());
-      const clientId = config.androidClientId || config.googleClientId;
+    // Fetch client ID at runtime from our server — env vars in capacitor.config.ts
+    // are evaluated at sync time and will always be empty in Cloud Run.
+    const config = await fetch('/api/config').then(r => r.json());
+    const clientId = config.androidClientId || config.googleClientId;
 
-      if (!clientId) {
-        throw new Error('Google Client ID is not configured on the server.');
-      }
-
-      await GoogleAuth.initialize({ clientId, scopes: ['profile', 'email'], grantOfflineAccess: true });
-      const googleUser = await GoogleAuth.signIn();
-      const { error } = await supabase.auth.signInWithIdToken({
-        provider: 'google',
-        token: googleUser.authentication.idToken,
-      });
-      if (error) throw error;
-      window.location.href = '/';
-    } catch (error) {
-      console.error('Login failed:', error);
+    if (!clientId) {
+      throw new Error('Google Client ID is not configured on the server. Check NEXT_PUBLIC_ANDROID_CLIENT_ID in Cloud Run.');
     }
+
+    await GoogleAuth.initialize({ clientId, scopes: ['profile', 'email'], grantOfflineAccess: true });
+    const googleUser = await GoogleAuth.signIn();
+
+    if (!googleUser?.authentication?.idToken) {
+      throw new Error(`Google Sign-In returned no idToken. User object: ${JSON.stringify(googleUser)}`);
+    }
+
+    const { error } = await supabase.auth.signInWithIdToken({
+      provider: 'google',
+      token: googleUser.authentication.idToken,
+    });
+    if (error) throw error;
+    window.location.href = '/';
   } else {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
