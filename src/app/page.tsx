@@ -204,7 +204,6 @@ export default function MobileHome() {
     }
   };
 
-  const mapProviders = result?.providers || [];
   const showNav = !!result && !loading;
   const showInput = !result && !loading;
 
@@ -455,9 +454,10 @@ export default function MobileHome() {
                     {/* Map Card */}
                     <div className="w-full h-[320px] rounded-3xl overflow-hidden border border-white/10 shadow-2xl relative bg-stone-900/50 backdrop-blur-xl">
                       <OrchestratorMap
-                        warehouseLocation={result.targetLocation || userLocation}
-                        suppliers={mapProviders}
-                        selectedSupplierId={null}
+                        userLocation={result.userLocation || userLocation}
+                        providerLocation={result.bookingDetails?.providerLocation}
+                        providerName={result.bookingDetails?.providerName || result.bookingDetails?.provider || 'Provider'}
+                        bookingConfirmed={!!result.bookingDetails}
                       />
                       {/* Only show status overlay when a booking actually exists */}
                       {result.bookingDetails && (

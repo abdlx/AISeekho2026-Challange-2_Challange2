@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     const adminClient = createAdminClient();
 
-    const { userInput, sessionId, userLocation = "33.6844, 73.0479" } = await req.json();
+    const { userInput, sessionId, userLocation = '33.6844, 73.0479' } = await req.json();
 
     if (!userInput || !sessionId) {
       return Response.json({ error: 'Missing required fields: userInput, sessionId' }, { status: 400 });
@@ -33,18 +33,25 @@ export async function POST(req: Request) {
         const sendTrace = (step: string, msg: string) => {
           try {
             controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'trace', step, message: msg })}\n\n`));
-          } catch (e) { }
+          } catch (_e) { }
         };
-        const sendResult = (data: any) => {
+        const sendResult = (data: unknown) => {
           try {
             controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'result', data })}\n\n`));
-          } catch (e) { }
+          } catch (_e) { }
         };
         const sendError = (msg: string) => {
           try {
             controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'error', error: msg })}\n\n`));
-          } catch (e) { }
+          } catch (_e) { }
         };
+
+        // ── Closure-captured tool results (reliable regardless of SDK internals) ──
+        let capturedTargetLocation: string = userLocation;
+        let capturedProviders: unknown[] = [];
+        let capturedRankingReasoning: string | null = null;
+        let capturedBookingDetails: Record<string, unknown> | null = null;
+        let capturedFollowUpDetails: Record<string, unknown> | null = null;
 
         try {
           sendTrace('linguistic', 'Linguistic Agent: Extracting intent...');
@@ -64,61 +71,63 @@ export async function POST(req: Request) {
             step_type: 'linguistic_analysis',
             agent_name: 'Linguistic Agent',
             payload: linguisticAnalysis,
-            user_id: user?.id || null
+            user_id: user?.id || null,
           });
 
           const result = await generateText({
             model: openrouter('google/gemini-3.1-flash-lite-preview'),
             system: `You are the MAIN SUPERVISOR AGENT.
-            
-            The LINGUISTIC AGENT has already analyzed the request:
-            - Intent: ${linguisticAnalysis.intent}
-            - Service: ${linguisticAnalysis.serviceType}
-            - Location Mentioned: ${linguisticAnalysis.locationName}
-            - Scheduled Time: ${linguisticAnalysis.scheduledTime || 'Now'}
-            
-            Your goal is to coordinate LOGISTICS, DISCOVERY, RANKING, and TRANSACTION to find and book the best provider.
-            
-            RULES:
-            1. If a location was mentioned, geocode it first.
-            2. Call 'find_providers' for ${linguisticAnalysis.serviceType}.
-            3. Call 'rank_providers' with the results.
-            4. Use 'calculate_travel' on the best match only.
-            5. Call 'book_provider' to finalize the booking.
-            6. After booking, ALWAYS call 'schedule_followup' to schedule a reminder.`,
+
+The LINGUISTIC AGENT has already analyzed the request:
+- Intent: ${linguisticAnalysis.intent}
+- Service: ${linguisticAnalysis.serviceType}
+- Location Mentioned: ${linguisticAnalysis.locationName}
+- Scheduled Time: ${linguisticAnalysis.scheduledTime || 'Now'}
+
+Your goal is to coordinate LOGISTICS, DISCOVERY, RANKING, and TRANSACTION to find and book the best provider.
+
+CRITICAL RULES (follow in exact order):
+1. If a location was mentioned, call 'geocode_location' first to get coordinates. If no location, use: ${userLocation}.
+2. Call 'find_providers' with those coordinates and service type '${linguisticAnalysis.serviceType}'.
+3. Call 'rank_providers' with the providers 'data' array from step 2.
+4. Call 'calculate_travel' using the best provider's 'location' field as providerLocation.
+5. Call 'book_provider' — pass the provider's 'location' field as providerLocation (e.g. "24.9200, 67.0300"), the provider's 'id' as providerId, and 'name' as providerName.
+6. After booking, ALWAYS call 'schedule_followup' with the bookingId.`,
             prompt: `Original User Input: ${userInput}`,
             tools: {
               geocode_location: tool({
-                description: 'LOGISTICS AGENT: Convert address to coordinates.',
-                inputSchema: z.object({
-                  address: z.string(),
-                }),
+                description: 'LOGISTICS AGENT: Convert a place name or address to lat,lng coordinates.',
+                inputSchema: z.object({ address: z.string() }),
                 execute: async ({ address }) => {
-                  sendTrace('logistics', `Logistics Agent: Geocoding ${address}...`);
+                  sendTrace('logistics', `Logistics Agent: Geocoding "${address}"...`);
                   const res = await logisticsAgent(address);
-                  if (res.success) {
+                  if (res.success && res.location) {
+                    capturedTargetLocation = res.location;
                     sendTrace('success', `Coordinates: ${res.location}`);
                     return res.location;
                   }
                   return null;
                 },
               }),
+
               find_providers: tool({
-                description: 'DISCOVERY AGENT: Search database for matching providers near the user.',
+                description: 'DISCOVERY AGENT: Search the database for matching service providers near given coordinates.',
                 inputSchema: z.object({
                   serviceType: z.string(),
-                  location: z.string().describe('The lat,lng coordinates of the user.'),
+                  location: z.string().describe('lat,lng string of the target area'),
                 }),
                 execute: async ({ serviceType, location }) => {
-                  sendTrace('discovery', `Discovery Agent: Finding nearby providers...`);
+                  sendTrace('discovery', 'Discovery Agent: Finding nearby providers...');
                   const [lat, lng] = location.split(',').map(Number);
                   const res = await discoveryAgent(serviceType, lat, lng);
+                  capturedProviders = res.data || [];
                   sendTrace('success', `${res.data?.length || 0} providers found nearby`);
                   return res;
                 },
               }),
+
               rank_providers: tool({
-                description: 'RANKING AGENT: Scores and ranks a list of providers by distance, availability, and rating. Returns the best match with explicit reasoning.',
+                description: 'RANKING AGENT: Score and rank providers. Returns the best match.',
                 inputSchema: z.object({
                   providers: z.array(z.object({
                     id: z.string(),
@@ -129,13 +138,12 @@ export async function POST(req: Request) {
                   })),
                 }),
                 execute: async ({ providers }) => {
-                  sendTrace('ranking', `Ranking by ETA + rating...`);
+                  sendTrace('ranking', 'Ranking Agent: Scoring providers...');
                   const scored = providers.map(p => {
                     const distanceScore = Math.max(0, 10 - p.distanceKm) * 0.4;
                     const ratingScore = ((p.rating || 4.5) / 5) * 10 * 0.4;
                     const availabilityScore = p.is_available ? 10 * 0.2 : 0;
-                    const totalScore = distanceScore + ratingScore + availabilityScore;
-                    return { ...p, totalScore: parseFloat(totalScore.toFixed(2)) };
+                    return { ...p, totalScore: parseFloat((distanceScore + ratingScore + availabilityScore).toFixed(2)) };
                   });
 
                   const ranked = scored.sort((a, b) => b.totalScore - a.totalScore);
@@ -146,23 +154,25 @@ export async function POST(req: Request) {
                     return { rankedProviders: [], bestMatch: null, reasoning: 'No providers to rank.' };
                   }
 
-                  const reasoning = `${best.name} selected as best match with a composite score of ${best.totalScore}/10. ` +
-                    `Key factors: ${best.distanceKm.toFixed(1)}km away (proximity score: ${(Math.max(0, 10 - best.distanceKm) * 0.4).toFixed(1)}), ` +
-                    `${best.rating || 4.5}⭐ rating (rating score: ${(((best.rating || 4.5) / 5) * 10 * 0.4).toFixed(1)}), ` +
-                    `availability: ${best.is_available ? 'confirmed ✓' : 'unavailable ✗'}.`;
+                  const reasoning =
+                    `${best.name} selected (score ${best.totalScore}/10): ` +
+                    `${best.distanceKm.toFixed(1)}km away, ${best.rating || 4.5}★, ` +
+                    `${best.is_available ? 'available ✓' : 'unavailable ✗'}.`;
 
+                  capturedRankingReasoning = reasoning;
                   sendTrace('success', `Top pick: ${best.name} — ${best.distanceKm.toFixed(1)}km, ${best.rating || 4.5}★`);
                   return { rankedProviders: ranked, bestMatch: best, reasoning };
                 },
               }),
+
               calculate_travel: tool({
-                description: 'LOGISTICS AGENT: Calculate real-time travel time.',
+                description: 'LOGISTICS AGENT: Calculate real-time driving ETA between provider and customer.',
                 inputSchema: z.object({
                   providerLocation: z.string(),
                   customerLocation: z.string().optional(),
                 }),
                 execute: async ({ providerLocation, customerLocation }) => {
-                  sendTrace('logistics', `Logistics Agent: Calculating ETA...`);
+                  sendTrace('logistics', 'Logistics Agent: Calculating ETA...');
                   const res = await calculateTravelAgent(providerLocation, customerLocation || userLocation);
                   if (res.success) {
                     sendTrace('success', `ETA: ${res.eta}`);
@@ -171,15 +181,19 @@ export async function POST(req: Request) {
                   throw new Error(res.error);
                 },
               }),
+
               book_provider: tool({
-                description: 'TRANSACTION AGENT: Finalize the booking.',
+                description: 'TRANSACTION AGENT: Finalize the booking in the database.',
                 inputSchema: z.object({
                   providerId: z.string().uuid(),
                   providerName: z.string(),
+                  providerLocation: z.string().describe('The exact lat,lng string of the provider from the find_providers result (e.g. "24.9200, 67.0300")'),
                   estimatedCost: z.number(),
                 }),
-                execute: async ({ providerId, providerName, estimatedCost }) => {
-                  sendTrace('transaction', `Transaction Agent: Booking slot...`);
+                execute: async ({ providerId, providerName, providerLocation, estimatedCost }) => {
+                  sendTrace('transaction', 'Transaction Agent: Booking slot...');
+                  console.log(`[BOOK_PROVIDER] providerLocation="${providerLocation}" name="${providerName}"`);
+
                   const res = await transactionAgent(
                     providerId,
                     providerName,
@@ -187,26 +201,40 @@ export async function POST(req: Request) {
                     userLocation,
                     linguisticAnalysis.serviceType,
                     linguisticAnalysis.scheduledTime,
-                    user?.id || null
+                    user?.id || null,
                   );
+
                   if (res.success) {
-                    sendTrace('success', `Confirmed: ${res.bookingId?.slice(0, 8) || 'BK-' + Math.floor(Math.random() * 10000)} | ${linguisticAnalysis.scheduledTime || 'ASAP'}`);
-                    return res;
+                    capturedBookingDetails = {
+                      confirmationCode: res.confirmationCode,
+                      provider: res.provider,
+                      providerName,
+                      providerLocation,          // ← DB coordinates for the map pin
+                      bookingId: res.bookingId,
+                      scheduledTime: res.scheduledTime,
+                      message: res.message,
+                      status: res.status,
+                    };
+                    console.log('[BOOK_PROVIDER] Captured:', JSON.stringify(capturedBookingDetails));
+                    sendTrace('success', `Confirmed: ${String(res.bookingId).slice(0, 8)} | ${linguisticAnalysis.scheduledTime || 'ASAP'}`);
+                    return capturedBookingDetails;
                   }
                   throw new Error(res.error);
                 },
               }),
+
               schedule_followup: tool({
-                description: 'FOLLOW-UP AGENT: Schedules a reminder 1 hour before the appointment. Writes to database.',
+                description: 'FOLLOW-UP AGENT: Schedule a reminder 1 hour before the appointment.',
                 inputSchema: z.object({
                   bookingId: z.string().uuid(),
                   scheduledTime: z.string().describe('ISO timestamp of the appointment'),
                   providerName: z.string(),
                 }),
                 execute: async ({ bookingId, scheduledTime, providerName }) => {
-                  sendTrace('followup', `Follow-up Agent: Scheduling reminder...`);
+                  sendTrace('followup', 'Follow-up Agent: Scheduling reminder...');
                   const res = await followupAgent(bookingId, scheduledTime, providerName);
                   if (res.success) {
+                    capturedFollowUpDetails = res as Record<string, unknown>;
                     sendTrace('success', `Reminder set for ${new Date(scheduledTime).toLocaleTimeString()}`);
                     return res;
                   }
@@ -217,17 +245,18 @@ export async function POST(req: Request) {
             stopWhen: stepCountIs(8),
           });
 
+          // ── Build action chain from steps ────────────────────────────────────
           const executedActions: string[] = [];
-
           for (const step of result.steps) {
             const toolName = step.toolCalls?.[0]?.toolName || null;
             if (toolName) executedActions.push(toolName);
 
-            const agentName = toolName === 'find_providers' ? 'Discovery Agent' :
+            const agentName =
+              toolName === 'find_providers' ? 'Discovery Agent' :
               (toolName === 'geocode_location' || toolName === 'calculate_travel') ? 'Logistics Agent' :
-                toolName === 'rank_providers' ? 'Ranking Agent' :
-                  toolName === 'book_provider' ? 'Transaction Agent' :
-                    toolName === 'schedule_followup' ? 'Follow-up Agent' : 'Supervisor';
+              toolName === 'rank_providers' ? 'Ranking Agent' :
+              toolName === 'book_provider' ? 'Transaction Agent' :
+              toolName === 'schedule_followup' ? 'Follow-up Agent' : 'Supervisor';
 
             await adminClient.from('agent_traces').insert({
               session_id: sessionId,
@@ -235,34 +264,36 @@ export async function POST(req: Request) {
               agent_name: agentName,
               tool_name: toolName,
               payload: step,
-              user_id: user?.id || null
+              user_id: user?.id || null,
             });
           }
 
+          // ── Send final result (all data from closures — no SDK parsing needed) ─
           sendResult({
             status: 'success',
             insight: result.text,
             actionChainExecuted: executedActions,
-            targetLocation: (result.steps.find(s => s.toolCalls.some(tc => tc.toolName === 'geocode_location'))?.toolResults?.[0] as any)?.result || userLocation,
-            providers: (result.steps.find(s => s.toolCalls.some(tc => tc.toolName === 'find_providers'))?.toolResults?.[0] as any)?.result || [],
-            rankingReasoning: (result.steps.find(s => s.toolCalls.some(tc => tc.toolName === 'rank_providers'))?.toolResults?.[0] as any)?.result?.reasoning || null,
-            bookingDetails: (result.steps.find(s => s.toolCalls.some(tc => tc.toolName === 'book_provider'))?.toolResults?.[0] as any)?.result || null,
-            followUpDetails: (result.steps.find(s => s.toolCalls.some(tc => tc.toolName === 'schedule_followup'))?.toolResults?.[0] as any)?.result || null,
+            targetLocation: capturedTargetLocation,
+            userLocation,
+            providers: capturedProviders,
+            rankingReasoning: capturedRankingReasoning,
+            bookingDetails: capturedBookingDetails,
+            followUpDetails: capturedFollowUpDetails,
             scheduledTime: linguisticAnalysis.scheduledTime,
             metrics: {
               latencyMs: Date.now() - startTime,
               providerFound: executedActions.includes('find_providers'),
-              bookingConfirmed: executedActions.includes('book_provider')
+              bookingConfirmed: executedActions.includes('book_provider'),
             },
-            sessionId
+            sessionId,
           });
 
           controller.close();
-        } catch (err: any) {
-          sendError(err.message);
+        } catch (err: unknown) {
+          sendError(err instanceof Error ? err.message : String(err));
           controller.close();
         }
-      }
+      },
     });
 
     return new Response(stream, {
@@ -272,8 +303,8 @@ export async function POST(req: Request) {
         'Connection': 'keep-alive',
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Service Orchestration Error:', error);
-    return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });
   }
 }
