@@ -1,9 +1,9 @@
 'use client';
 
-import { createClient } from '@/lib/supabase';
+import { createClientAsync } from '@/lib/supabase';
 
 export async function signInWithGoogle() {
-  const supabase = createClient();
+  const supabase = await createClientAsync();
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
@@ -18,7 +18,7 @@ export async function signInWithGoogle() {
 }
 
 export async function signOut() {
-  const supabase = createClient();
+  const supabase = await createClientAsync();
   const { error } = await supabase.auth.signOut();
   if (error) {
     console.error('Error signing out:', error.message);
