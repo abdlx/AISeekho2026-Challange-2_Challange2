@@ -4,10 +4,17 @@ import { createClientAsync } from '@/lib/supabase';
 
 export async function signInWithGoogle() {
   const supabase = await createClientAsync();
+  
+  // Detect if running in Capacitor/Native
+  const isCapacitor = typeof window !== 'undefined' && (window as any).Capacitor;
+  const redirectTo = isCapacitor 
+    ? 'com.aiseekho.aiso://auth/callback' 
+    : `${window.location.origin}/auth/callback`;
+
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${window.location.origin}/auth/callback`,
+      redirectTo,
     },
   });
 
