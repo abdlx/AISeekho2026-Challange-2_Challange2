@@ -4,6 +4,8 @@ interface AppConfig {
   supabaseUrl: string;
   supabaseAnonKey: string;
   mapsApiKey: string;
+  googleClientId: string;
+  androidClientId: string;
 }
 
 let cachedConfig: AppConfig | null = null;

@@ -38,6 +38,8 @@ export default function RootLayout({
       className={`${inter.variable} ${geistSans.variable} ${geistMono.variable} ${playfair.variable} h-full antialiased`}
     >
       <head>
+        {/* Capacitor Bridge — essential for plugins to work on remote URLs */}
+        <script src="/capacitor.js" async></script>
         {/* Runtime env injection — MUST be in head to run before React hydration */}
         <script
           dangerouslySetInnerHTML={{
