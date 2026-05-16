@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { importLibrary, setOptions } from '@googlemaps/js-api-loader';
-import { getEnv } from '@/lib/env';
 
 interface OrchestratorMapProps {
   userLocation?: string;       // "lat, lng" — the customer
@@ -67,25 +66,22 @@ export default function OrchestratorMap({
 
   // Load Maps SDK once
   useEffect(() => {
-    const apiKey = getEnv('NEXT_PUBLIC_GOOGLE_MAPS_API_KEY');
-    if (!apiKey || apiKey === 'your_google_maps_api_key_here') {
-      setMapError('Maps API key not configured.');
-      return;
-    }
-    if (!loaderInitialized) {
-      setOptions({
-        key: apiKey,
-        v: 'weekly',
-      });
-      loaderInitialized = true;
-    }
-    
-    Promise.all([
-      importLibrary('maps'),
-      importLibrary('marker'),
-      importLibrary('routes'),
-      importLibrary('geometry')
-    ]).then(() => setMapReady(true)).catch(() => setMapError('Failed to load Google Maps.'));
+    fetch('/api/config')
+      .then((r) => r.json())
+      .then(({ mapsApiKey }) => {
+        if (!mapsApiKey) { setMapError('Maps API key not configured.'); return; }
+        if (!loaderInitialized) {
+          setOptions({ key: mapsApiKey, v: 'weekly' });
+          loaderInitialized = true;
+        }
+        Promise.all([
+          importLibrary('maps'),
+          importLibrary('marker'),
+          importLibrary('routes'),
+          importLibrary('geometry')
+        ]).then(() => setMapReady(true)).catch(() => setMapError('Failed to load Google Maps.'));
+      })
+      .catch(() => setMapError('Failed to load config.'));
   }, []);
 
   // Initialize map and markers
@@ -178,70 +174,70 @@ export default function OrchestratorMap({
 
       // ─── ROUTE ───────────────────────────────────────────────────────
       if (bookingConfirmed) {
-        const apiKey = getEnv('NEXT_PUBLIC_GOOGLE_MAPS_API_KEY');
-        
-        fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Goog-Api-Key': apiKey,
-            'X-Goog-FieldMask': 'routes.polyline.encodedPolyline'
-          },
-          body: JSON.stringify({
-            origin: { location: { latLng: { latitude: providerLatLng.lat, longitude: providerLatLng.lng } } },
-            destination: { location: { latLng: { latitude: userLatLng.lat, longitude: userLatLng.lng } } },
-            travelMode: 'DRIVE'
+        fetch('/api/config').then((r) => r.json()).then(({ mapsApiKey: apiKey }) => {
+          fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Goog-Api-Key': apiKey,
+              'X-Goog-FieldMask': 'routes.polyline.encodedPolyline'
+            },
+            body: JSON.stringify({
+              origin: { location: { latLng: { latitude: providerLatLng.lat, longitude: providerLatLng.lng } } },
+              destination: { location: { latLng: { latitude: userLatLng.lat, longitude: userLatLng.lng } } },
+              travelMode: 'DRIVE'
+            })
           })
-        })
-        .then(res => res.json())
-        .then(data => {
-          if (data.routes && data.routes.length > 0 && data.routes[0].polyline?.encodedPolyline) {
-            const decodedPath = google.maps.geometry.encoding.decodePath(data.routes[0].polyline.encodedPolyline);
-            
+          .then(res => res.json())
+          .then(data => {
+            if (data.routes && data.routes.length > 0 && data.routes[0].polyline?.encodedPolyline) {
+              const decodedPath = google.maps.geometry.encoding.decodePath(data.routes[0].polyline.encodedPolyline);
+              
+              const poly = new google.maps.Polyline({
+                path: decodedPath,
+                geodesic: true,
+                strokeColor: '#ca8a04',
+                strokeOpacity: 0.85,
+                strokeWeight: 4,
+                icons: [{
+                  icon: {
+                    path: google.maps.SymbolPath.FORWARD_OPEN_ARROW,
+                    scale: 2.5,
+                    strokeColor: '#fbbf24',
+                    strokeWeight: 2,
+                    fillColor: '#fbbf24',
+                    fillOpacity: 1,
+                  },
+                  offset: '100%',
+                  repeat: '55px',
+                }],
+                map,
+              });
+              fallbackPolylineRef.current = poly;
+
+              const bounds = new google.maps.LatLngBounds();
+              decodedPath.forEach(point => bounds.extend(point));
+              map.fitBounds(bounds, { top: 70, bottom: 70, left: 50, right: 50 });
+            } else {
+              throw new Error(data.error?.message || 'No route found in response');
+            }
+          })
+          .catch(err => {
+            console.warn('[Map] Routes API failed, using fallback polyline:', err);
             const poly = new google.maps.Polyline({
-              path: decodedPath,
+              path: [providerLatLng!, userLatLng],
               geodesic: true,
               strokeColor: '#ca8a04',
               strokeOpacity: 0.85,
               strokeWeight: 4,
-              icons: [{
-                icon: {
-                  path: google.maps.SymbolPath.FORWARD_OPEN_ARROW,
-                  scale: 2.5,
-                  strokeColor: '#fbbf24',
-                  strokeWeight: 2,
-                  fillColor: '#fbbf24',
-                  fillOpacity: 1,
-                },
-                offset: '100%',
-                repeat: '55px',
-              }],
               map,
             });
             fallbackPolylineRef.current = poly;
-
             const bounds = new google.maps.LatLngBounds();
-            decodedPath.forEach(point => bounds.extend(point));
+            bounds.extend(userLatLng);
+            bounds.extend(providerLatLng!);
             map.fitBounds(bounds, { top: 70, bottom: 70, left: 50, right: 50 });
-          } else {
-            throw new Error(data.error?.message || 'No route found in response');
-          }
-        })
-        .catch(err => {
-          console.warn('[Map] Routes API failed, using fallback polyline:', err);
-          const poly = new google.maps.Polyline({
-            path: [providerLatLng!, userLatLng],
-            geodesic: true,
-            strokeColor: '#ca8a04',
-            strokeOpacity: 0.85,
-            strokeWeight: 4,
-            map,
           });
-          fallbackPolylineRef.current = poly;
-          const bounds = new google.maps.LatLngBounds();
-          bounds.extend(userLatLng);
-          bounds.extend(providerLatLng!);
-          map.fitBounds(bounds, { top: 70, bottom: 70, left: 50, right: 50 });
         });
       } else {
         // No route yet, just fit both markers

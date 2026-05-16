@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, Home, Search, Clock, Send, MapPin, CheckCircle2, Activity, ChevronLeft, ReceiptText, BellRing, Navigation2, LogOut, Package, Zap, BarChart3, Languages, XCircle, Cpu, Settings, Info } from 'lucide-react';
 import OrchestratorMap from './components/OrchestratorMap';
-import { createClient } from '@/lib/supabase';
+import { createClientAsync } from '@/lib/supabase';
 import { signInWithGoogle, signOut } from './actions/auth';
 
 const AGENT_META: Record<string, { label: string; icon: React.ReactNode; color: string; accent: string }> = {
@@ -96,21 +96,24 @@ export default function MobileHome() {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const supabase = createClient();
+    let subscription: { unsubscribe: () => void } | null = null;
 
-    // Initial check
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setAuthLoading(false);
+    createClientAsync().then((supabase) => {
+      // Initial check
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        setUser(session?.user ?? null);
+        setAuthLoading(false);
+      });
+
+      // Listen for changes
+      const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+        setUser(session?.user ?? null);
+        setAuthLoading(false);
+      });
+      subscription = data.subscription;
     });
 
-    // Listen for changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setAuthLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    return () => subscription?.unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -120,7 +123,7 @@ export default function MobileHome() {
   }, [user, activeTab]);
 
   const fetchHistory = async () => {
-    const supabase = createClient();
+    const supabase = await createClientAsync();
     const { data } = await supabase
       .from('service_bookings')
       .select('*, service_providers(name, location, rating)')

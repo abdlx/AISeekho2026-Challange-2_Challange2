@@ -1,11 +1,36 @@
 import { createBrowserClient } from '@supabase/ssr';
-import { getEnv } from './env';
 
-// Client-side Supabase client (Safe for Browser)
-// Keys are read lazily inside the function to ensure window._env_ is populated
-// by the time this is called (critical for Cloud Run runtime injection).
-export const createClient = () => {
-  const supabaseUrl = getEnv('NEXT_PUBLIC_SUPABASE_URL');
-  const supabaseAnonKey = getEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY');
+interface AppConfig {
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+  mapsApiKey: string;
+}
+
+let cachedConfig: AppConfig | null = null;
+let configPromise: Promise<AppConfig> | null = null;
+
+/**
+ * Fetches config from the server-side /api/config endpoint.
+ * Result is cached globally so it only fetches once per page load.
+ * This is the reliable solution for Cloud Run where NEXT_PUBLIC_ vars
+ * are not available at Docker build time.
+ */
+export async function getConfig(): Promise<AppConfig> {
+  if (cachedConfig) return cachedConfig;
+  if (configPromise) return configPromise;
+
+  configPromise = fetch('/api/config')
+    .then((r) => r.json())
+    .then((data) => {
+      cachedConfig = data as AppConfig;
+      return cachedConfig;
+    });
+
+  return configPromise;
+}
+
+/** Returns a Supabase browser client initialized with runtime config. */
+export async function createClientAsync() {
+  const { supabaseUrl, supabaseAnonKey } = await getConfig();
   return createBrowserClient(supabaseUrl, supabaseAnonKey);
-};
+}
