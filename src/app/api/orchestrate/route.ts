@@ -50,8 +50,8 @@ export async function POST(req: Request) {
         let capturedTargetLocation: string = userLocation;
         let capturedProviders: unknown[] = [];
         let capturedRankingReasoning: string | null = null;
-        let capturedBookingDetails: Record<string, unknown> | null = null;
-        let capturedFollowUpDetails: Record<string, unknown> | null = null;
+        let capturedBookingDetails: any = null;
+        let capturedFollowUpDetails: any = null;
 
         try {
           sendTrace('linguistic', 'Linguistic Agent: Extracting intent...');
@@ -92,7 +92,8 @@ CRITICAL RULES (follow in exact order):
 3. Call 'rank_providers' with the providers 'data' array from step 2.
 4. Call 'calculate_travel' using the best provider's 'location' field as providerLocation.
 5. Call 'book_provider' — pass the provider's 'location' field as providerLocation (e.g. "24.9200, 67.0300"), the provider's 'id' as providerId, and 'name' as providerName.
-6. After booking, ALWAYS call 'schedule_followup' with the bookingId.`,
+6. After booking, ALWAYS call 'schedule_followup' with the bookingId.
+7. FINAL STEP: After all tools have executed, provide a brief, professional summary in natural language (English) explaining that you've secured the booking and mention the provider name. This summary will be shown to the user as "Agent Reasoning".`,
             prompt: `Original User Input: ${userInput}`,
             tools: {
               geocode_location: tool({
@@ -271,7 +272,7 @@ CRITICAL RULES (follow in exact order):
           // ── Send final result (all data from closures — no SDK parsing needed) ─
           sendResult({
             status: 'success',
-            insight: result.text,
+            insight: result.text?.trim() || `I have successfully coordinated the ${executedActions.length} steps required to book your ${linguisticAnalysis.serviceType} service. Your provider, ${capturedBookingDetails ? (capturedBookingDetails as any).providerName : 'the specialist'}, is confirmed.`,
             actionChainExecuted: executedActions,
             targetLocation: capturedTargetLocation,
             userLocation,

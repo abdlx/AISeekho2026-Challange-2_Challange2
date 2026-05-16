@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, Home, Search, Clock, Send, MapPin, CheckCircle2, Activity, ChevronLeft, ReceiptText, BellRing, Navigation2, LogOut, Package, Zap, BarChart3, Languages, XCircle, Cpu } from 'lucide-react';
+import { Menu, Home, Search, Clock, Send, MapPin, CheckCircle2, Activity, ChevronLeft, ReceiptText, BellRing, Navigation2, LogOut, Package, Zap, BarChart3, Languages, XCircle, Cpu, Settings } from 'lucide-react';
 import OrchestratorMap from './components/OrchestratorMap';
 import { createClient } from '@/lib/supabase';
 import { signInWithGoogle, signOut } from './actions/auth';
@@ -93,6 +93,7 @@ export default function MobileHome() {
   const [user, setUser] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('home');
+  const [showMenu, setShowMenu] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
@@ -291,24 +292,18 @@ export default function MobileHome() {
         </div>
         <div className="flex items-center gap-2">
           {user && (
-            <>
-              <button 
-                onClick={() => signOut()} 
-                className="p-2.5 rounded-full bg-white/5 hover:bg-red-500/10 hover:border-red-500/20 backdrop-blur-xl border border-white/10 transition-all active:scale-95 group"
-                title="Logout"
-              >
-                <LogOut size={18} className="text-white/40 group-hover:text-red-400 transition-colors" />
-              </button>
-              <div className="w-10 h-10 rounded-full border border-white/10 p-0.5 overflow-hidden backdrop-blur-xl bg-white/5">
-                <img 
-                  src={user.user_metadata.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`} 
-                  className="w-full h-full rounded-full object-cover" 
-                  alt="profile" 
-                />
-              </div>
-            </>
+            <div className="w-10 h-10 rounded-full border border-white/10 p-0.5 overflow-hidden backdrop-blur-xl bg-white/5">
+              <img 
+                src={user.user_metadata.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`} 
+                className="w-full h-full rounded-full object-cover" 
+                alt="profile" 
+              />
+            </div>
           )}
-          <button className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-xl border border-white/10 transition-all active:scale-95">
+          <button 
+            onClick={() => setShowMenu(true)}
+            className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-xl border border-white/10 transition-all active:scale-95"
+          >
             <Menu size={20} className="text-foreground/80" />
           </button>
         </div>
@@ -506,7 +501,14 @@ export default function MobileHome() {
                           {result.scheduledTime && (
                             <div className="col-span-2 mt-1">
                               <p className="text-stone-500 text-xs mb-1">Scheduled Time</p>
-                              <p className="text-stone-200">{new Date(result.scheduledTime).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}</p>
+                              <p className="text-stone-200">
+                                {result.scheduledTime === 'Now' 
+                                  ? 'Immediate Arrival' 
+                                  : isNaN(new Date(result.scheduledTime).getTime())
+                                    ? result.scheduledTime
+                                    : new Date(result.scheduledTime).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })
+                                }
+                              </p>
                             </div>
                           )}
                           <div className="col-span-2 pt-2 border-t border-white/5">
@@ -632,11 +634,71 @@ export default function MobileHome() {
           >
             <div className="flex items-center gap-1 px-2 py-2 bg-stone-900/40 backdrop-blur-[32px] border border-white/10 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
               <NavButton icon={<Home size={20} />} active={activeTab === 'home'} onClick={() => setActiveTab('home')} />
-              <NavButton icon={<Search size={20} />} />
+              <NavButton icon={<Search size={20} />} active={activeTab === 'search'} onClick={() => setActiveTab('search')} />
               <NavButton icon={<Package size={20} />} active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} />
-              <NavButton icon={<Clock size={20} />} />
+              <NavButton icon={<BellRing size={20} />} active={activeTab === 'alerts'} onClick={() => setActiveTab('alerts')} />
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Side Menu Drawer */}
+      <AnimatePresence>
+        {showMenu && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowMenu(false)}
+              className="absolute inset-0 z-[100] bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="absolute top-0 right-0 bottom-0 w-[80%] max-w-sm z-[101] bg-stone-950/80 backdrop-blur-3xl border-l border-white/10 p-8 flex flex-col"
+            >
+              <div className="flex justify-between items-center mb-12">
+                <h2 className="text-2xl font-serif text-white">Menu</h2>
+                <button onClick={() => setShowMenu(false)} className="p-2 rounded-full bg-white/5 border border-white/10">
+                  <XCircle size={20} className="text-white/40" />
+                </button>
+              </div>
+
+              <div className="flex-1 flex flex-col gap-2">
+                <MenuItem icon={<Home className="w-5 h-5" />} label="Home" onClick={() => { setActiveTab('home'); setShowMenu(false); }} />
+                <MenuItem icon={<Package className="w-5 h-5" />} label="My Bookings" onClick={() => { setActiveTab('orders'); setShowMenu(false); }} />
+                <MenuItem icon={<Zap className="w-5 h-5" />} label="Emergency Help" />
+                <MenuItem icon={<MapPin className="w-5 h-5" />} label="Saved Locations" />
+                <div className="h-px bg-white/5 my-4" />
+                <MenuItem icon={<Settings className="w-5 h-5" />} label="Settings" />
+                <MenuItem icon={<BellRing className="w-5 h-5" />} label="Notifications" onClick={() => { setActiveTab('alerts'); setShowMenu(false); }} />
+              </div>
+
+              <div className="mt-auto pt-8 border-t border-white/5 flex flex-col gap-4">
+                <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5">
+                  <img 
+                    src={user?.user_metadata.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email}`} 
+                    className="w-10 h-10 rounded-full border border-white/10" 
+                    alt="profile" 
+                  />
+                  <div className="overflow-hidden">
+                    <p className="text-sm font-medium text-white truncate">{user?.user_metadata.full_name}</p>
+                    <p className="text-[10px] text-stone-500 truncate">{user?.email}</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => { signOut(); setShowMenu(false); }}
+                  className="flex items-center gap-3 p-3 rounded-2xl text-red-400 hover:bg-red-500/10 transition-colors"
+                >
+                  <LogOut size={20} />
+                  <span className="text-sm font-medium">Sign Out</span>
+                </button>
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
 
@@ -648,6 +710,20 @@ function NavButton({ icon, active = false, onClick }: { icon: React.ReactNode, a
   return (
     <button onClick={onClick} className={`p-4 rounded-2xl transition-all duration-500 cursor-pointer ${active ? 'bg-accent/10 text-accent shadow-[inset_0_0_20px_rgba(202,138,4,0.1)]' : 'text-stone-500 hover:text-stone-200 hover:bg-white/5'}`}>
       {icon}
+    </button>
+  );
+}
+
+function MenuItem({ icon, label, onClick }: { icon: React.ReactNode, label: string, onClick?: () => void }) {
+  return (
+    <button 
+      onClick={onClick}
+      className="flex items-center gap-4 p-4 rounded-2xl text-stone-400 hover:text-white hover:bg-white/5 transition-all group"
+    >
+      <div className="p-2 rounded-xl bg-white/5 group-hover:bg-accent/10 group-hover:text-accent transition-colors">
+        {icon}
+      </div>
+      <span className="font-medium tracking-tight">{label}</span>
     </button>
   );
 }
