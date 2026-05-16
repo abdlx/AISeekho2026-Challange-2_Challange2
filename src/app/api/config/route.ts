@@ -10,5 +10,7 @@ export async function GET() {
     supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
     supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
     mapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? '',
+    googleClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? '',
+    androidClientId: process.env.NEXT_PUBLIC_ANDROID_CLIENT_ID ?? '',
   });
 }
