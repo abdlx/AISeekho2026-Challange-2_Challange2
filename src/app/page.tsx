@@ -138,6 +138,22 @@ export default function MobileHome() {
   const [fullName, setFullName] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+
+  // Monitor network connection status
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setIsOnline(navigator.onLine);
+      const handleOnline = () => setIsOnline(true);
+      const handleOffline = () => setIsOnline(false);
+      window.addEventListener('online', handleOnline);
+      window.addEventListener('offline', handleOffline);
+      return () => {
+        window.removeEventListener('online', handleOnline);
+        window.removeEventListener('offline', handleOffline);
+      };
+    }
+  }, []);
 
   // Flagship Haptic Engine setup with pre-cached instances
   const hapticsRef = useRef<any>(null);
@@ -198,12 +214,24 @@ export default function MobileHome() {
   }, []);
 
   useEffect(() => {
+    // Register Service Worker for offline availability
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').then((reg) => {
+        console.log('[ServiceWorker] Active with scope:', reg.scope);
+      }).catch((err) => {
+        console.error('[ServiceWorker] Registration failed:', err);
+      });
+    }
+
     let subscription: { unsubscribe: () => void } | null = null;
 
     createClientAsync().then((supabase) => {
       // Initial check
       supabase.auth.getSession().then(({ data: { session } }) => {
         setUser(session?.user ?? null);
+        setAuthLoading(false);
+      }).catch((err) => {
+        console.warn('Supabase getSession failed, likely offline:', err);
         setAuthLoading(false);
       });
 
@@ -213,6 +241,9 @@ export default function MobileHome() {
         setAuthLoading(false);
       });
       subscription = data.subscription;
+    }).catch((err) => {
+      console.warn('createClientAsync failed, likely offline:', err);
+      setAuthLoading(false);
     });
 
     return () => subscription?.unsubscribe();
@@ -388,6 +419,12 @@ export default function MobileHome() {
     if (!userInput.trim()) return;
     setError(null);
 
+    if (!navigator.onLine) {
+      setError('You are offline. Please connect to the internet to run the service orchestrator.');
+      void triggerHaptic('warning');
+      return;
+    }
+
     if (!locationAccessGranted || !userLocation) {
       const granted = await requestLocationAccess();
       if (!granted) {
@@ -479,6 +516,14 @@ export default function MobileHome() {
   if (!user) {
     return (
       <div className="relative h-[100dvh] w-full overflow-hidden spot-gradient-bg font-sans text-foreground selection:bg-accent/30 flex flex-col items-center justify-center p-6">
+        {/* Offline Status Premium Banner */}
+        {!isOnline && (
+          <div className="absolute top-[calc(env(safe-area-inset-top)+1.5rem)] left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-full bg-red-500/20 border border-red-500/30 backdrop-blur-xl flex items-center gap-2 shadow-2xl animate-pulse">
+            <span className="w-2 h-2 rounded-full bg-red-500" />
+            <span className="text-[10px] tracking-widest uppercase font-bold text-red-200">Connect to Internet</span>
+          </div>
+        )}
+
         {/* Dynamic Cosmic Aurora Background (GPU Accelerated with zero-blur GPU radial gradients) */}
         <div className="absolute inset-0 z-0 overflow-hidden bg-transparent">
           {/* Aurora Circle 1 (Accent Golden/Amber) */}
@@ -521,6 +566,10 @@ export default function MobileHome() {
           <form
             onSubmit={async (e) => {
               e.preventDefault();
+              if (!navigator.onLine) {
+                setLoginError('You are offline. Please connect to the internet to sign in.');
+                return;
+              }
               if (!email.trim() || !password.trim()) {
                 setLoginError('Email and Password are required.');
                 return;
@@ -657,6 +706,14 @@ export default function MobileHome() {
 
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden spot-gradient-bg font-sans text-foreground selection:bg-accent/30">
+      {/* Offline Status Premium Banner */}
+      {!isOnline && (
+        <div className="absolute top-[calc(env(safe-area-inset-top)+1rem)] left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-full bg-red-500/20 border border-red-500/30 backdrop-blur-xl flex items-center gap-2 shadow-2xl animate-pulse">
+          <span className="w-2 h-2 rounded-full bg-red-500" />
+          <span className="text-[10px] tracking-widest uppercase font-bold text-red-200">Connect to Internet</span>
+        </div>
+      )}
+
       {/* Dynamic Cosmic Aurora Background (GPU Accelerated with zero-blur GPU radial gradients) */}
       <div className="absolute inset-0 z-0 overflow-hidden bg-transparent">
         {/* Aurora Circle 1 (Accent Golden/Amber) */}
