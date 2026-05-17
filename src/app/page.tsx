@@ -4,10 +4,59 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, Home, Search, Clock, Send, MapPin, CheckCircle2, Activity, ChevronLeft, ReceiptText, BellRing, Navigation2, LogOut, Package, Zap, BarChart3, Languages, XCircle, Cpu, Settings, Info, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
+import { Menu, Home, Search, Clock, Send, MapPin, CheckCircle2, Activity, ChevronLeft, ReceiptText, BellRing, Navigation2, LogOut, Package, Zap, BarChart3, Languages, XCircle, Cpu, Settings, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
 import OrchestratorMap from './components/OrchestratorMap';
 import { createClientAsync } from '@/lib/supabase';
 import { signInWithEmailPassword, signUpWithEmailPassword, signOut } from './actions/auth';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
+
+export interface BookingHistoryItem {
+  id: string;
+  service_type: string;
+  customer_location: string;
+  scheduled_time: string;
+  total_cost_pkr: number;
+  status: string;
+  created_at: string;
+  service_providers?: {
+    name: string;
+    location: string;
+    rating?: number;
+    hourly_rate_pkr?: number;
+  };
+}
+
+export interface BookingResult {
+  status: string;
+  insight?: string;
+  actionChainExecuted: string[];
+  targetLocation?: string;
+  userLocation?: string;
+  providers?: unknown[];
+  rankingReasoning?: string;
+  bookingDetails?: {
+    confirmationCode: string;
+    provider?: string;
+    providerName?: string;
+    providerLocation?: string;
+    bookingId: string;
+    scheduledTime?: string;
+    message: string;
+    status: string;
+    pricePerHour?: number;
+    totalCostPkr?: number;
+  };
+  followUpDetails?: {
+    message: string;
+  };
+  metrics: {
+    latencyMs: number;
+    providerFound?: boolean;
+    bookingConfirmed?: boolean;
+  };
+  sessionId?: string;
+  scheduledTime?: string;
+}
 
 const AGENT_META: Record<string, { label: string; icon: React.ReactNode; color: string; accent: string }> = {
   linguistic: { label: 'Linguistic Agent', icon: <Languages className="w-4 h-4" />, color: 'text-violet-400', accent: 'bg-violet-500/10 border-violet-500/20 shadow-[inset_0_0_20px_rgba(167,139,250,0.08)]' },
@@ -21,7 +70,6 @@ const AGENT_META: Record<string, { label: string; icon: React.ReactNode; color: 
 };
 
 // Snappier hardware-accelerated mobile WebView animation physics
-const SPRING_SNAPPY = { type: 'spring', stiffness: 380, damping: 38, mass: 1 } as const;
 const SPRING_TACTILE = { type: 'spring', stiffness: 300, damping: 28, mass: 1 } as const;
 const SPRING_DRAWER = { type: 'spring', stiffness: 400, damping: 40, mass: 1 } as const;
 const TRANSITION_FAST = { type: 'tween', ease: 'easeOut', duration: 0.15 } as const;
@@ -116,15 +164,15 @@ function AgentTraceCard({ trace, isLast, isActive }: { trace: { step: string; me
 
 export default function MobileHome() {
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<BookingResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [traces, setTraces] = useState<{ step: string, message: string }[]>([]);
   const [userInput, setUserInput] = useState('');
   const [userLocation, setUserLocation] = useState('');
   const [locationAccessGranted, setLocationAccessGranted] = useState(false);
   const [bookingStatus, setBookingStatus] = useState<string>('Confirmed');
-  const [user, setUser] = useState<any>(null);
-  const [history, setHistory] = useState<any[]>([]);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [history, setHistory] = useState<BookingHistoryItem[]>([]);
   const [activeTab, setActiveTab] = useState('home');
   const [showMenu, setShowMenu] = useState(false);
   const [resultSourceTab, setResultSourceTab] = useState<string | null>(null);
@@ -138,7 +186,7 @@ export default function MobileHome() {
   const [fullName, setFullName] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [isOnline, setIsOnline] = useState(true);
+  const [isOnline, setIsOnline] = useState(() => typeof window !== 'undefined' ? navigator.onLine : true);
 
   // Agent Trace drawer states
   const [showTraceDrawer, setShowTraceDrawer] = useState(false);
@@ -167,7 +215,6 @@ export default function MobileHome() {
   // Monitor network connection status
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setIsOnline(navigator.onLine);
       const handleOnline = () => setIsOnline(true);
       const handleOffline = () => setIsOnline(false);
       window.addEventListener('online', handleOnline);
@@ -180,7 +227,7 @@ export default function MobileHome() {
   }, []);
 
   // Flagship Haptic Engine setup with pre-cached instances
-  const hapticsRef = useRef<any>(null);
+  const hapticsRef = useRef<{ vibrate: (options: { duration: number }) => Promise<void> } | null>(null);
 
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
@@ -231,7 +278,10 @@ export default function MobileHome() {
     const params = new URLSearchParams(window.location.search);
     const err = params.get('login_error');
     if (err) {
-      setLoginError(decodeURIComponent(err));
+      const decodedErr = decodeURIComponent(err);
+      setTimeout(() => {
+        setLoginError(decodedErr);
+      }, 0);
       // Clean the URL
       window.history.replaceState({}, '', '/');
     }
@@ -273,12 +323,6 @@ export default function MobileHome() {
     return () => subscription?.unsubscribe();
   }, []);
 
-  useEffect(() => {
-    if (user && activeTab === 'orders') {
-      fetchHistory();
-    }
-  }, [user, activeTab]);
-
   const fetchHistory = async () => {
     const supabase = await createClientAsync();
     const { data } = await supabase
@@ -288,7 +332,16 @@ export default function MobileHome() {
     setHistory(data || []);
   };
 
-  const handleViewPastBooking = (item: any) => {
+  useEffect(() => {
+    if (user && activeTab === 'orders') {
+      const timer = setTimeout(() => {
+        void fetchHistory();
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [user, activeTab]);
+
+  const handleViewPastBooking = (item: BookingHistoryItem) => {
     void triggerHaptic('light');
     setResult({
       status: 'success',
@@ -340,7 +393,7 @@ export default function MobileHome() {
     }
 
     // Otherwise (e.g. for past bookings), fetch them using the API!
-    const bookingId = result?.bookingDetails?.bookingId || result?.bookingDetails?.bookingCode;
+    const bookingId = result?.bookingDetails?.bookingId;
     const sessionId = result?.sessionId;
 
     if (!bookingId && !sessionId) {
@@ -361,7 +414,7 @@ export default function MobileHome() {
       const data = await res.json();
       
       // Map API traces array into local timeline format
-      const formatted = (data.traces || []).map((t: any) => {
+      const formatted = (data.traces || []).map((t: { tool_name?: string; step_type?: string; payload?: { text?: string; toolResults?: { toolName: string; result?: { message?: string; bookingId?: string } }[] } }) => {
         // Find human readable message
         let msg = t.payload?.text || '';
         if (!msg && t.payload?.toolResults) {
@@ -398,7 +451,7 @@ export default function MobileHome() {
       } else {
         setDrawerTraces(formatted);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       setDrawerError('Failed to load agent timeline.');
     } finally {
@@ -430,7 +483,7 @@ export default function MobileHome() {
     if (!Capacitor.isNativePlatform()) return;
 
     let active = true;
-    let listener: Promise<any> | null = null;
+    let listener: Promise<{ remove: () => Promise<void> }> | null = null;
 
     const setupBackButton = async () => {
       const { App } = await import('@capacitor/app');
@@ -460,7 +513,7 @@ export default function MobileHome() {
         listener.then((l) => l.remove()).catch((err) => console.error('Failed to remove back button listener', err));
       }
     };
-  }, [showTraceDrawer, showMenu, result, activeTab, resultSourceTab, handleCloseResult]);
+  }, [showTraceDrawer, showMenu, result, activeTab, resultSourceTab, handleCloseResult, triggerHaptic]);
 
   const requestLocationAccess = async (): Promise<boolean> => {
     try {
@@ -505,15 +558,22 @@ export default function MobileHome() {
   };
 
   useEffect(() => {
-    void requestLocationAccess();
+    const timer = setTimeout(() => {
+      void requestLocationAccess();
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
     if (result && result.bookingDetails) {
-      setBookingStatus('Confirmed');
+      const t0 = setTimeout(() => setBookingStatus('Confirmed'), 0);
       const t1 = setTimeout(() => setBookingStatus('Provider En Route'), 3000);
       const t2 = setTimeout(() => setBookingStatus('Service Completed'), 6000);
-      return () => { clearTimeout(t1); clearTimeout(t2); };
+      return () => {
+        clearTimeout(t0);
+        clearTimeout(t1);
+        clearTimeout(t2);
+      };
     }
   }, [result]);
 
@@ -593,8 +653,8 @@ export default function MobileHome() {
           }
         }
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
       setLoading(false);
       void triggerHaptic('warning');
     }
@@ -691,8 +751,8 @@ export default function MobileHome() {
                 } else {
                   await signInWithEmailPassword(email, password);
                 }
-              } catch (err: any) {
-                setLoginError(err?.message || String(err));
+              } catch (err: unknown) {
+                setLoginError(err instanceof Error ? err.message : String(err));
               } finally {
                 setLoginLoading(false);
               }
@@ -1297,13 +1357,13 @@ export default function MobileHome() {
                           <p className="text-[10px] uppercase tracking-[0.2em] text-violet-400 font-bold mb-2 flex items-center gap-1.5">
                             <ReceiptText size={10} className="text-violet-400" /> Booking Code
                           </p>
-                          <p className="text-base font-mono font-bold tracking-wider text-stone-200 select-all">{result.bookingDetails.confirmationCode}</p>
+                          <p className="text-base font-mono font-bold tracking-wider text-stone-200 select-all">{result.bookingDetails!.confirmationCode}</p>
                           <div className="mt-3">
                             <button
                               onClick={async (e) => {
                                 e.preventDefault();
                                 void triggerHaptic('light');
-                                await navigator.clipboard.writeText(result.bookingDetails.confirmationCode);
+                                await navigator.clipboard.writeText(result.bookingDetails!.confirmationCode);
                               }}
                               className="text-[9px] uppercase tracking-wider bg-violet-500/10 border border-violet-500/20 text-violet-300 hover:bg-violet-500/20 hover:text-white px-2.5 py-1 rounded-xl transition-all active:scale-95 cursor-pointer font-bold"
                             >
@@ -1320,7 +1380,7 @@ export default function MobileHome() {
                           <p className="text-[10px] uppercase tracking-[0.2em] text-sky-400 font-bold mb-2 flex items-center gap-1.5">
                             <User size={10} className="text-sky-400" /> Specialist
                           </p>
-                          <p className="text-sm font-bold text-stone-100 truncate">{result.bookingDetails.providerName || result.bookingDetails.provider || 'Technician'}</p>
+                          <p className="text-sm font-bold text-stone-100 truncate">{result.bookingDetails!.providerName || result.bookingDetails!.provider || 'Technician'}</p>
                           <div className="mt-2.5 flex items-center gap-1.5">
                             <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/25 text-[10px] font-bold text-accent">
                               4.8 ★
@@ -1339,7 +1399,7 @@ export default function MobileHome() {
                           </p>
                           <p className="text-sm font-bold text-stone-200 truncate">
                             {(() => {
-                              const timeVal = result.scheduledTime || result.bookingDetails.scheduledTime;
+                              const timeVal = result.scheduledTime || result.bookingDetails!.scheduledTime;
                               return timeVal === 'Now' || !timeVal
                                 ? 'Immediate Arrival'
                                 : isNaN(new Date(timeVal).getTime())
@@ -1349,7 +1409,7 @@ export default function MobileHome() {
                           </p>
                           <p className="text-[9px] text-stone-500 mt-1 font-medium tracking-wide uppercase">
                             {(() => {
-                              const timeVal = result.scheduledTime || result.bookingDetails.scheduledTime;
+                              const timeVal = result.scheduledTime || result.bookingDetails!.scheduledTime;
                               if (timeVal === 'Now' || !timeVal) return 'En Route Now';
                               if (isNaN(new Date(timeVal).getTime())) return 'Scheduled Slot';
                               return new Date(timeVal).toLocaleDateString('en-PK', { month: 'short', day: 'numeric' });
@@ -1365,7 +1425,7 @@ export default function MobileHome() {
                           <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-400 font-bold mb-2 flex items-center gap-1.5">
                             <Zap size={10} className="text-emerald-400" /> Hourly Rate
                           </p>
-                          <p className="text-lg font-bold text-emerald-400">PKR {result.bookingDetails.pricePerHour || result.bookingDetails.totalCostPkr || 2000}<span className="text-[10px] text-stone-500 font-normal">/hr</span></p>
+                          <p className="text-lg font-bold text-emerald-400">PKR {result.bookingDetails!.pricePerHour || result.bookingDetails!.totalCostPkr || 2000}<span className="text-[10px] text-stone-500 font-normal">/hr</span></p>
                           <p className="text-[9px] text-stone-500 mt-2 font-medium tracking-wide uppercase">Secure Cash Payment</p>
                         </div>
                       </motion.div>
@@ -1446,7 +1506,7 @@ export default function MobileHome() {
                       <div className="bg-white/5 backdrop-blur-3xl border border-white/10 p-6 rounded-[2rem] shadow-xl flex flex-col justify-center">
                         <p className="text-[10px] uppercase tracking-[0.2em] text-stone-500 font-bold mb-3">Actions Taken</p>
                         <div className="flex -space-x-3">
-                          {result.actionChainExecuted.map((_: any, i: number) => (
+                          {result.actionChainExecuted.map((_: unknown, i: number) => (
                             <div key={i} className="w-8 h-8 rounded-full bg-stone-800 border-2 border-stone-950 flex items-center justify-center text-xs font-bold text-accent shadow-lg">
                               {i + 1}
                             </div>
@@ -1661,13 +1721,6 @@ export default function MobileHome() {
   );
 }
 
-function NavButton({ icon, active = false, onClick }: { icon: React.ReactNode, active?: boolean, onClick?: () => void }) {
-  return (
-    <button onClick={onClick} className={`p-4 rounded-2xl transition-all duration-500 cursor-pointer ${active ? 'bg-accent/10 text-accent shadow-[inset_0_0_20px_rgba(202,138,4,0.1)]' : 'text-stone-500 hover:text-stone-200 hover:bg-white/5'}`}>
-      {icon}
-    </button>
-  );
-}
 function MenuItem({ icon, label, active = false, onClick }: { icon: React.ReactNode, label: string, active?: boolean, onClick?: () => void }) {
   return (
     <motion.button

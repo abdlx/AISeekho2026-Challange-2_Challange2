@@ -30,8 +30,9 @@ export async function getShippingETA(origin: string, destination: string) {
     } else {
       throw new Error(`Distance Matrix API Error: ${data.error_message || data.status}`);
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Google Maps API error:", error);
-    throw new Error(`Failed to calculate shipping ETA: ${error.message}`);
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to calculate shipping ETA: ${msg}`);
   }
 }

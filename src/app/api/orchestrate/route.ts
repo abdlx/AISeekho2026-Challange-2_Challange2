@@ -33,25 +33,39 @@ export async function POST(req: Request) {
         const sendTrace = (step: string, msg: string) => {
           try {
             controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'trace', step, message: msg })}\n\n`));
-          } catch (_e) { }
+          } catch { }
         };
         const sendResult = (data: unknown) => {
           try {
             controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'result', data })}\n\n`));
-          } catch (_e) { }
+          } catch { }
         };
         const sendError = (msg: string) => {
           try {
             controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'error', error: msg })}\n\n`));
-          } catch (_e) { }
+          } catch { }
         };
 
         // ── Closure-captured tool results (reliable regardless of SDK internals) ──
         let capturedTargetLocation: string = userLocation;
         let capturedProviders: unknown[] = [];
         let capturedRankingReasoning: string | null = null;
-        let capturedBookingDetails: any = null;
-        let capturedFollowUpDetails: any = null;
+        let capturedBookingDetails: {
+          success: boolean;
+          status?: string;
+          confirmationCode?: string;
+          provider?: string;
+          providerName?: string;
+          providerLocation?: string;
+          message?: string;
+          bookingId?: string;
+          scheduledTime?: string;
+          pricePerHour?: number;
+        } | null = null;
+        let capturedFollowUpDetails: {
+          success: boolean;
+          message?: string;
+        } | null = null;
 
         try {
           sendTrace('linguistic', 'Linguistic Agent: Extracting intent...');
@@ -245,6 +259,7 @@ CRITICAL RULE: If find_providers or rank_providers returns no providers or bestM
 
                   if (res.success) {
                     capturedBookingDetails = {
+                      success: true,
                       confirmationCode: res.confirmationCode,
                       provider: res.provider,
                       providerName,
@@ -274,7 +289,7 @@ CRITICAL RULE: If find_providers or rank_providers returns no providers or bestM
                   sendTrace('followup', 'Follow-up Agent: Scheduling reminder...');
                   const res = await followupAgent(bookingId, scheduledTime, providerName);
                   if (res.success) {
-                    capturedFollowUpDetails = res as Record<string, unknown>;
+                    capturedFollowUpDetails = res;
                     sendTrace('success', `Reminder set for ${new Date(scheduledTime).toLocaleTimeString()}`);
                     return res;
                   }
@@ -311,7 +326,7 @@ CRITICAL RULE: If find_providers or rank_providers returns no providers or bestM
           // ── Send final result (all data from closures — no SDK parsing needed) ─
           sendResult({
             status: 'success',
-            insight: result.text?.trim() || `I have successfully coordinated the ${executedActions.length} steps required to book your ${linguisticAnalysis.serviceType} service. Your provider, ${capturedBookingDetails ? (capturedBookingDetails as any).providerName : 'the specialist'}, is confirmed.`,
+            insight: result.text?.trim() || `I have successfully coordinated the ${executedActions.length} steps required to book your ${linguisticAnalysis.serviceType} service. Your provider, ${capturedBookingDetails ? (capturedBookingDetails as { providerName?: string }).providerName : 'the specialist'}, is confirmed.`,
             actionChainExecuted: executedActions,
             targetLocation: capturedTargetLocation,
             userLocation,
