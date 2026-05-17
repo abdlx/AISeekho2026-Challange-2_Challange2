@@ -389,21 +389,25 @@ export default function MobileHome() {
     }
     setResult(null);
     setUserInput('');
+    setTraces([]);
+    setDrawerTraces([]);
   }, [resultSourceTab, triggerHaptic]);
 
   const handleOpenTraceDrawer = async () => {
-    setShowTraceDrawer(true);
+    // Clear old drawer traces to prevent screen-flashing layout jumps
+    setDrawerTraces([]);
     setDrawerError(null);
+    setShowTraceDrawer(true);
 
-    // If traces are already in memory (from a live booking run), use them!
-    if (traces.length > 0) {
+    const isHistorical = resultSourceTab === 'orders';
+    const bookingId = result?.bookingDetails?.bookingId;
+    const sessionId = result?.sessionId;
+
+    // Use live in-memory trace logs ONLY if this is not a historical past order view
+    if (!isHistorical && traces.length > 0) {
       setDrawerTraces(traces);
       return;
     }
-
-    // Otherwise (e.g. for past bookings), fetch them using the API!
-    const bookingId = result?.bookingDetails?.bookingId;
-    const sessionId = result?.sessionId;
 
     if (!bookingId && !sessionId) {
       setDrawerError('Unable to resolve traces: missing booking or session ID.');
@@ -422,18 +426,51 @@ export default function MobileHome() {
       }
       const data = await res.json();
       
-      // Map API traces array into local timeline format
-      const formatted = (data.traces || []).map((t: { tool_name?: string; step_type?: string; payload?: { text?: string; toolResults?: { toolName: string; result?: { message?: string; bookingId?: string } }[] } }) => {
-        // Find human readable message
-        let msg = t.payload?.text || '';
-        if (!msg && t.payload?.toolResults) {
-          const firstResult = t.payload.toolResults[0];
-          if (firstResult?.result?.message) {
-            msg = firstResult.result.message;
-          }
+      // Map API database traces array into local descriptive timeline format
+      const formatted = (data.traces || []).map((t: { tool_name?: string; step_type?: string; agent_name?: string; payload?: unknown }) => {
+        let msg = '';
+        const payload = (t.payload || {}) as Record<string, unknown>;
+
+        if (t.step_type === 'linguistic_analysis') {
+          const service = payload.serviceType || 'service';
+          const loc = payload.locationName || 'current coordinates';
+          const urgency = payload.urgency || 'medium';
+          msg = `Linguistic Agent: Decoded request for ${service} in "${loc}" with urgency profile: ${urgency}.`;
+        } else if (t.tool_name === 'geocode_location') {
+          const args = (payload.args || {}) as Record<string, unknown>;
+          const addr = args.address || 'specified area';
+          const coords = payload.result || 'coordinates';
+          msg = `Logistics Agent: Geocoded "${addr}" to coordinates [${coords}].`;
+        } else if (t.tool_name === 'find_providers') {
+          const resultObj = (payload.result || {}) as Record<string, unknown>;
+          const count = Array.isArray(resultObj.data) ? resultObj.data.length : 0;
+          msg = `Discovery Agent: Scanned database and matched ${count} nearby service specialists.`;
+        } else if (t.tool_name === 'rank_providers') {
+          const resultObj = (payload.result || {}) as Record<string, unknown>;
+          const bestMatch = (resultObj.bestMatch || {}) as Record<string, unknown>;
+          const best = bestMatch.name || 'Top Technician';
+          const rate = bestMatch.hourly_rate_pkr || 2000;
+          const dist = typeof bestMatch.distanceKm === 'number' ? bestMatch.distanceKm : 0;
+          msg = `Ranking Agent: Completed scoring metrics. Selected ${best} (PKR ${rate}/hr, ${dist.toFixed(1)}km away) as optimal option.`;
+        } else if (t.tool_name === 'calculate_travel') {
+          const eta = payload.result || '15 mins';
+          msg = `Logistics Agent: Calculated driving route. Technician estimated arrival ETA is ${eta}.`;
+        } else if (t.tool_name === 'book_provider') {
+          const resultObj = (payload.result || {}) as Record<string, unknown>;
+          const rawId = String(resultObj.bookingId || '');
+          const code = rawId ? rawId.slice(0, 8).toUpperCase() : 'CONFIRMED';
+          msg = `Transaction Agent: Secured booking confirmation in database. Created order receipt #${code}.`;
+        } else if (t.tool_name === 'schedule_followup') {
+          msg = `Follow-up Agent: Registered automated appointment review triggers in database.`;
+        }
+
+        // Fallbacks if custom mapping isn't hit
+        if (!msg) {
+          const payloadObj = payload as { text?: string };
+          msg = payloadObj.text || '';
         }
         if (!msg) {
-          msg = `Executed ${t.tool_name || t.step_type}`;
+          msg = `Executed ${t.tool_name || t.step_type || 'unattributed action'}`;
         }
         
         // Match the trace steps to our visual steps
@@ -462,7 +499,8 @@ export default function MobileHome() {
       }
     } catch (err: unknown) {
       console.error(err);
-      setDrawerError('Failed to load agent timeline.');
+      const errMsg = err instanceof Error ? err.message : 'Unknown network error';
+      setDrawerError(`Failed to load agent timeline: ${errMsg}`);
     } finally {
       setDrawerLoading(false);
     }
@@ -1615,8 +1653,8 @@ export default function MobileHome() {
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
-              transition={SPRING_DRAWER}
-              className="absolute bottom-0 left-0 right-0 max-h-[85vh] z-[111] bg-stone-950/90 backdrop-blur-[40px] border-t border-white/10 rounded-t-[3rem] p-6 pb-[calc(env(safe-area-inset-bottom)+2rem)] flex flex-col shadow-[0_-15px_40px_rgba(0,0,0,0.6)] overflow-hidden"
+              transition={{ type: 'tween', ease: 'easeOut', duration: 0.28 }}
+              className="absolute bottom-0 left-0 right-0 max-h-[85vh] z-[111] bg-stone-950 border-t border-white/10 rounded-t-[3rem] p-6 pb-[calc(env(safe-area-inset-bottom)+2rem)] flex flex-col shadow-[0_-15px_40px_rgba(0,0,0,0.6)] overflow-hidden"
             >
               {/* Decorative Drawer handle pill */}
               <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-6 flex-shrink-0" />
