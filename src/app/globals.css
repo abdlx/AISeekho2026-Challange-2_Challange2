@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --background: #1c1917;
+  --background: #080b10;
   --foreground: #fafaf9;
   --primary: #ca8a04;
   --secondary: #44403c;
@@ -19,8 +19,19 @@
   --font-mono: var(--font-geist-mono);
 }
 
+.spot-gradient-bg {
+  background: 
+    radial-gradient(ellipse at top left, #0d1f3c 0%, transparent 50%),
+    radial-gradient(ellipse at bottom right, #1a0a2e 0%, transparent 50%),
+    #080b10;
+}
+
 body {
-  background: var(--background);
+  background: 
+    radial-gradient(ellipse at top left, #0d1f3c 0%, transparent 50%),
+    radial-gradient(ellipse at bottom right, #1a0a2e 0%, transparent 50%),
+    #080b10;
+  background-attachment: fixed;
   color: var(--foreground);
   font-family: var(--font-sans);
 }
@@ -117,7 +128,7 @@ body {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #1c1917; /* Matches background */
+  background: #080b10; /* Matches background */
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: inset -4px 0 8px rgba(0, 0, 0, 0.5);
   z-index: 10;
@@ -132,7 +143,7 @@ body {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #1c1917; /* Matches background */
+  background: #080b10; /* Matches background */
   border-left: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: inset 4px 0 8px rgba(0, 0, 0, 0.5);
   z-index: 10;

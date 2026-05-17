@@ -435,7 +435,7 @@ export default function MobileHome() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen spot-gradient-bg flex items-center justify-center">
         <motion.div
           animate={{ scale: [1, 1.1, 1], opacity: [0.3, 0.6, 0.3] }}
           transition={{ duration: 2, repeat: Infinity }}
@@ -448,9 +448,9 @@ export default function MobileHome() {
 
   if (!user) {
     return (
-      <div className="relative h-[100dvh] w-full overflow-hidden bg-background font-sans text-foreground selection:bg-accent/30 flex flex-col items-center justify-center p-6">
+      <div className="relative h-[100dvh] w-full overflow-hidden spot-gradient-bg font-sans text-foreground selection:bg-accent/30 flex flex-col items-center justify-center p-6">
         {/* Dynamic Cosmic Aurora Background (GPU Accelerated) */}
-        <div className="absolute inset-0 z-0 overflow-hidden bg-[#0c0a09]">
+        <div className="absolute inset-0 z-0 overflow-hidden bg-transparent">
           {/* Aurora Circle 1 (Accent Golden/Amber) */}
           <div className="absolute -top-1/4 -left-1/4 w-[85%] aspect-square rounded-full bg-accent/8 blur-[120px] animate-aurora-1 will-change-transform" />
           {/* Aurora Circle 2 (Indigo/Violet Deep Tech) */}
@@ -461,7 +461,6 @@ export default function MobileHome() {
           <div className="absolute inset-0 bg-[radial-gradient(#ffffff03_1px,transparent_1px)] [background-size:16px_16px] opacity-35 mix-blend-overlay" />
         </div>
         <div className="absolute inset-0 z-0 bg-stone-950/45 backdrop-blur-[2px]" />
-        <div className="absolute inset-0 z-0 bg-gradient-to-t from-background via-background/55 to-transparent" />
 
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
@@ -619,9 +618,9 @@ export default function MobileHome() {
   }
 
   return (
-    <div className="relative h-[100dvh] w-full overflow-hidden bg-background font-sans text-foreground selection:bg-accent/30">
+    <div className="relative h-[100dvh] w-full overflow-hidden spot-gradient-bg font-sans text-foreground selection:bg-accent/30">
       {/* Dynamic Cosmic Aurora Background (GPU Accelerated) */}
-      <div className="absolute inset-0 z-0 overflow-hidden bg-[#0c0a09]">
+      <div className="absolute inset-0 z-0 overflow-hidden bg-transparent">
         {/* Aurora Circle 1 (Accent Golden/Amber) */}
         <div className="absolute -top-1/4 -left-1/4 w-[85%] aspect-square rounded-full bg-accent/8 blur-[120px] animate-aurora-1 will-change-transform" />
         {/* Aurora Circle 2 (Indigo/Violet Deep Tech) */}
@@ -632,7 +631,6 @@ export default function MobileHome() {
         <div className="absolute inset-0 bg-[radial-gradient(#ffffff03_1px,transparent_1px)] [background-size:16px_16px] opacity-35 mix-blend-overlay" />
       </div>
       <div className="absolute inset-0 z-0 bg-stone-950/45 backdrop-blur-[2px] transition-all duration-700" />
-      <div className="absolute inset-0 z-0 bg-gradient-to-t from-background via-background/55 to-transparent" />
 
       {/* Header */}
       <header className="absolute top-0 left-0 right-0 z-20 pointer-events-none">
