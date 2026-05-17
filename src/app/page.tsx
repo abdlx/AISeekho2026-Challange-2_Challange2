@@ -768,7 +768,9 @@ export default function MobileHome() {
                         Hello, {(() => {
                           const fullName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'human';
                           const firstWord = fullName.trim().split(/\s+/)[0];
-                          return firstWord.replace(/[^a-zA-Z]/g, '').toUpperCase() || 'HUMAN';
+                          const cleaned = firstWord.replace(/[^a-zA-Z]/g, '');
+                          const displayName = cleaned || firstWord || 'HUMAN';
+                          return displayName.toUpperCase();
                         })()}
                       </p>
                       <h2 className="text-5xl sm:text-7xl font-light leading-tight mb-2 text-foreground tracking-tighter">
