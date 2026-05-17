@@ -6,6 +6,11 @@ import android.view.Window;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.content.Context;
 
 public class MainActivity extends BridgeActivity {
     @Override
@@ -26,5 +31,31 @@ public class MainActivity extends BridgeActivity {
             insetsController.setAppearanceLightStatusBars(false);
             insetsController.setAppearanceLightNavigationBars(false);
         }
+
+        // Configure WebView Caches to enable offline loading!
+        try {
+            WebView webView = this.getBridge().getWebView();
+            if (webView != null) {
+                WebSettings settings = webView.getSettings();
+                settings.setDomStorageEnabled(true);
+                settings.setDatabaseEnabled(true);
+                
+                // If offline, fall back to the cache completely
+                if (!isNetworkAvailable()) {
+                    settings.setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
+                } else {
+                    settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private boolean isNetworkAvailable() {
+        ConnectivityManager connectivityManager 
+            = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo activeNetworkInfo = connectivityManager != null ? connectivityManager.getActiveNetworkInfo() : null;
+        return activeNetworkInfo != null && activeNetworkInfo.isConnected();
     }
 }
