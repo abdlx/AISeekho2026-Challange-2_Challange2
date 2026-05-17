@@ -20,6 +20,33 @@ const AGENT_META: Record<string, { label: string; icon: React.ReactNode; color: 
   error: { label: 'Error', icon: <XCircle className="w-4 h-4" />, color: 'text-red-400', accent: 'bg-red-500/10 border-red-500/20 shadow-[inset_0_0_20px_rgba(248,113,113,0.08)]' },
 };
 
+// Snappier hardware-accelerated mobile WebView animation physics
+const SPRING_SNAPPY = { type: 'spring', stiffness: 380, damping: 38, mass: 1 } as const;
+const SPRING_TACTILE = { type: 'spring', stiffness: 300, damping: 28, mass: 1 } as const;
+const SPRING_DRAWER = { type: 'spring', stiffness: 400, damping: 40, mass: 1 } as const;
+
+// Variants for staggered container entrances
+const STAGGER_CONTAINER = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.05,
+      delayChildren: 0.05,
+    },
+  },
+};
+
+const STAGGER_ITEM = {
+  hidden: { opacity: 0, y: 15, scale: 0.98 },
+  show: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: SPRING_TACTILE,
+  },
+};
+
 function AgentTraceCard({ trace, isLast, isActive }: { trace: { step: string; message: string }; isLast: boolean; isActive: boolean }) {
   const meta = AGENT_META[trace.step] ?? { label: 'Supervisor', icon: <Cpu className="w-4 h-4" />, color: 'text-stone-400', accent: 'bg-white/5 border-white/10' };
   const isSuccess = trace.step === 'success';
@@ -623,10 +650,10 @@ export default function MobileHome() {
           {activeTab === 'orders' && (
             <motion.div
               key="orders-tab"
-              initial={{ opacity: 0, x: 50, filter: 'blur(10px)' }}
-              animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
-              exit={{ opacity: 0, x: -50, filter: 'blur(10px)' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              initial={{ opacity: 0, x: 25 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -25 }}
+              transition={SPRING_SNAPPY}
               className="flex flex-col space-y-4 pb-20"
             >
               {/* Header title now handles "Past Orders" */}
@@ -665,10 +692,10 @@ export default function MobileHome() {
           {activeTab === 'alerts' && (
             <motion.div
               key="alerts-tab"
-              initial={{ opacity: 0, x: 50, filter: 'blur(10px)' }}
-              animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
-              exit={{ opacity: 0, x: -50, filter: 'blur(10px)' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              initial={{ opacity: 0, x: 25 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -25 }}
+              transition={SPRING_SNAPPY}
               className="flex flex-col pb-20"
             >
               <div className="flex justify-end mb-6">
@@ -720,34 +747,34 @@ export default function MobileHome() {
           {activeTab === 'settings' && (
             <motion.div
               key="settings-tab"
-              initial={{ opacity: 0, x: 50, filter: 'blur(10px)' }}
-              animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
-              exit={{ opacity: 0, x: -50, filter: 'blur(10px)' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              variants={STAGGER_CONTAINER}
+              initial="hidden"
+              animate="show"
+              exit="hidden"
               className="flex flex-col pb-20"
             >
               {/* Header title now handles "Discovery & Settings" */}
 
               {/* Category Grid */}
-              <div className="grid grid-cols-2 gap-4 mb-10">
+              <motion.div variants={STAGGER_ITEM} className="grid grid-cols-2 gap-4 mb-10">
                 <CategoryCard icon={<Zap className="w-6 h-6" />} label="Electrician" color="bg-amber-500/10 text-amber-400" onClick={() => { setUserInput("I need an electrician near me"); setActiveTab('home'); }} />
                 <CategoryCard icon={<MapPin className="w-6 h-6" />} label="Plumber" color="bg-blue-500/10 text-blue-400" onClick={() => { setUserInput("Find a plumber in my area"); setActiveTab('home'); }} />
                 <CategoryCard icon={<Cpu className="w-6 h-6" />} label="AC Repair" color="bg-sky-500/10 text-sky-400" onClick={() => { setUserInput("Need AC technician for G-13"); setActiveTab('home'); }} />
                 <CategoryCard icon={<Activity className="w-6 h-6" />} label="Gas Fitter" color="bg-red-500/10 text-red-400" onClick={() => { setUserInput("Gas fitter required for kitchen stove"); setActiveTab('home'); }} />
-              </div>
+              </motion.div>
 
               {/* Discovery Prompts */}
-              <div className="space-y-4 mb-10">
+              <motion.div variants={STAGGER_ITEM} className="space-y-4 mb-10">
                 <h3 className="text-[10px] uppercase tracking-[0.3em] text-stone-500 font-bold px-1">Try Asking</h3>
                 <div className="flex flex-col gap-3">
                   <PromptButton text="“Kal subah plumber bhej dein”" onClick={() => { setUserInput("Kal subah plumber bhej dein"); setActiveTab('home'); }} />
                   <PromptButton text="“AC service near DHA Phase 6”" onClick={() => { setUserInput("AC service near DHA Phase 6"); setActiveTab('home'); }} />
                   <PromptButton text="“Emergency electrician needed now”" onClick={() => { setUserInput("Emergency electrician needed now"); setActiveTab('home'); }} />
                 </div>
-              </div>
+              </motion.div>
 
               {/* Profile & Account Section */}
-              <div className="space-y-4">
+              <motion.div variants={STAGGER_ITEM} className="space-y-4">
                 <h3 className="text-[10px] uppercase tracking-[0.3em] text-stone-500 font-bold px-1">Account</h3>
                 <div className="p-6 rounded-3xl bg-white/5 border border-white/10 flex flex-col gap-6">
                   <div className="flex items-center gap-4">
@@ -772,10 +799,10 @@ export default function MobileHome() {
                     <span className="text-sm font-bold">Sign Out</span>
                   </button>
                 </div>
-              </div>
+              </motion.div>
 
               {/* Language Support Badge */}
-              <div className="mt-10 p-6 rounded-3xl bg-accent/5 border border-accent/10 flex items-center gap-4">
+              <motion.div variants={STAGGER_ITEM} className="mt-10 p-6 rounded-3xl bg-accent/5 border border-accent/10 flex items-center gap-4">
                 <div className="p-3 bg-accent/10 rounded-2xl">
                   <Languages className="w-6 h-6 text-accent" />
                 </div>
@@ -783,7 +810,7 @@ export default function MobileHome() {
                   <p className="text-stone-200 text-sm font-medium">Multilingual Support</p>
                   <p className="text-stone-500 text-xs">Chat in Urdu, Roman Urdu, or English.</p>
                 </div>
-              </div>
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -793,20 +820,20 @@ export default function MobileHome() {
           {activeTab === 'home' && (
             <motion.div
               key="home-tab"
-              initial={{ opacity: 0, x: -50, filter: 'blur(10px)' }}
-              animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
-              exit={{ opacity: 0, x: 50, filter: 'blur(10px)' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              initial={{ opacity: 0, x: -25 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 25 }}
+              transition={SPRING_SNAPPY}
               className="flex-1 flex flex-col"
             >
               {/* Initial Clean State */}
               <AnimatePresence>
                 {!loading && !result && (
                   <motion.div
-                    initial={{ opacity: 0, y: 20 }}
+                    initial={{ opacity: 0, y: 15 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20, filter: 'blur(15px)' }}
-                    transition={{ duration: 0.8, ease: [0.23, 1, 0.32, 1] }}
+                    exit={{ opacity: 0, y: -15 }}
+                    transition={SPRING_TACTILE}
                     className="flex-1 flex flex-col justify-center pb-8"
                   >
                     <div className="flex-1 flex flex-col justify-center pb-20 text-center items-center">
@@ -894,13 +921,14 @@ export default function MobileHome() {
               <AnimatePresence>
                 {result && !loading && (
                   <motion.div
-                    initial={{ opacity: 0, y: 40 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                    variants={STAGGER_CONTAINER}
+                    initial="hidden"
+                    animate="show"
+                    exit="hidden"
                     className="flex flex-col space-y-6 pb-20"
                   >
                     {/* Map Card */}
-                    <div className="w-full h-[320px] rounded-3xl overflow-hidden border border-white/10 shadow-2xl relative bg-stone-900/50 backdrop-blur-xl">
+                    <motion.div variants={STAGGER_ITEM} className="w-full h-[320px] rounded-3xl overflow-hidden border border-white/10 shadow-2xl relative bg-stone-900/50 backdrop-blur-xl">
                       <OrchestratorMap
                         userLocation={result.userLocation || userLocation}
                         providerLocation={result.bookingDetails?.providerLocation}
@@ -931,11 +959,11 @@ export default function MobileHome() {
                           </div>
                         </div>
                       )}
-                    </div>
+                    </motion.div>
 
                     {/* Booking Receipt Card */}
                     {result.bookingDetails && (
-                      <div className="bg-white/5 backdrop-blur-3xl border border-white/10 p-7 rounded-[2rem] shadow-2xl relative overflow-hidden group">
+                      <motion.div variants={STAGGER_ITEM} className="bg-white/5 backdrop-blur-3xl border border-white/10 p-7 rounded-[2rem] shadow-2xl relative overflow-hidden group">
                         <div className="absolute top-0 right-0 p-4 opacity-10">
                           <ReceiptText size={80} />
                         </div>
@@ -969,12 +997,12 @@ export default function MobileHome() {
                             <p className="text-stone-300 italic">{result.bookingDetails.message}</p>
                           </div>
                         </div>
-                      </div>
+                      </motion.div>
                     )}
 
                     {/* Follow-up Card */}
                     {result.followUpDetails && (
-                      <div className="bg-white/5 backdrop-blur-3xl border border-white/10 p-6 rounded-[2rem] shadow-xl flex items-center gap-5">
+                      <motion.div variants={STAGGER_ITEM} className="bg-white/5 backdrop-blur-3xl border border-white/10 p-6 rounded-[2rem] shadow-xl flex items-center gap-5">
                         <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl">
                           <BellRing size={20} className="text-blue-400" />
                         </div>
@@ -982,12 +1010,12 @@ export default function MobileHome() {
                           <p className="text-[10px] uppercase tracking-[0.2em] text-stone-500 font-bold mb-1">Follow-up Scheduled</p>
                           <p className="text-stone-200 text-sm">{result.followUpDetails.message}</p>
                         </div>
-                      </div>
+                      </motion.div>
                     )}
 
                     {/* Ranking Decision Card */}
                     {result.rankingReasoning && (
-                      <div className="bg-white/5 backdrop-blur-3xl border border-accent/20 p-7 rounded-[2rem] shadow-2xl relative overflow-hidden">
+                      <motion.div variants={STAGGER_ITEM} className="bg-white/5 backdrop-blur-3xl border border-accent/20 p-7 rounded-[2rem] shadow-2xl relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-1 h-full bg-emerald-400/60" />
                         <h3 className="text-[10px] uppercase tracking-[0.2em] text-emerald-400 font-bold mb-4 flex items-center gap-2">
                           <BarChart3 size={14} /> Ranking Decision
@@ -995,11 +1023,11 @@ export default function MobileHome() {
                         <p className="text-stone-300 leading-relaxed text-sm">
                           {result.rankingReasoning}
                         </p>
-                      </div>
+                      </motion.div>
                     )}
 
                     {/* Agent Insight Card */}
-                    <div className="bg-white/5 backdrop-blur-3xl border border-white/10 p-7 rounded-[2rem] shadow-2xl relative overflow-hidden group">
+                    <motion.div variants={STAGGER_ITEM} className="bg-white/5 backdrop-blur-3xl border border-white/10 p-7 rounded-[2rem] shadow-2xl relative overflow-hidden group">
                       <div className="absolute top-0 left-0 w-1 h-full bg-accent/40" />
                       <h3 className="text-[10px] uppercase tracking-[0.2em] text-accent font-bold mb-4 flex items-center gap-2">
                         <Activity size={14} /> Agent Reasoning
@@ -1007,10 +1035,10 @@ export default function MobileHome() {
                       <p className="text-stone-300 leading-relaxed text-base font-serif italic">
                         "{result.insight}"
                       </p>
-                    </div>
+                    </motion.div>
 
                     {/* Metrics Grid */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <motion.div variants={STAGGER_ITEM} className="grid grid-cols-2 gap-4">
                       <div className="bg-white/5 backdrop-blur-3xl border border-white/10 p-6 rounded-[2rem] shadow-xl">
                         <p className="text-[10px] uppercase tracking-[0.2em] text-stone-500 font-bold mb-2">Latency</p>
                         <p className="text-2xl font-light text-foreground">{result.metrics.latencyMs} <span className="text-sm font-normal text-stone-600">ms</span></p>
@@ -1025,7 +1053,7 @@ export default function MobileHome() {
                           ))}
                         </div>
                       </div>
-                    </div>
+                    </motion.div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -1115,7 +1143,7 @@ export default function MobileHome() {
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              transition={SPRING_DRAWER}
               className="absolute top-0 right-0 bottom-0 w-[80%] max-w-sm z-[101] bg-stone-950/80 backdrop-blur-3xl border-l border-white/10 p-8 flex flex-col"
             >
               <div className="flex justify-between items-center mb-12">
