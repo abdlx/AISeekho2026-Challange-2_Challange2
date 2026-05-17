@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { StatusBar, Style } from '@capacitor/status-bar';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, Home, Search, Clock, Send, MapPin, CheckCircle2, Activity, ChevronLeft, ReceiptText, BellRing, Navigation2, LogOut, Package, Zap, BarChart3, Languages, XCircle, Cpu, Settings, Info, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
 import OrchestratorMap from './components/OrchestratorMap';
@@ -178,11 +180,55 @@ export default function MobileHome() {
   };
 
   useEffect(() => {
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition((position) => {
-        setUserLocation(`${position.coords.latitude}, ${position.coords.longitude}`);
-      });
-    }
+    const configureStatusBar = async () => {
+      if (!Capacitor.isNativePlatform()) return;
+
+      try {
+        await StatusBar.setOverlaysWebView({ overlay: true });
+        await StatusBar.setStyle({ style: Style.Dark });
+
+        if (Capacitor.getPlatform() === 'android') {
+          await StatusBar.setBackgroundColor({ color: '#00000000' });
+        }
+      } catch (err) {
+        console.error('Failed to configure status bar overlay', err);
+      }
+    };
+
+    void configureStatusBar();
+  }, []);
+
+  useEffect(() => {
+    const resolveUserLocation = async () => {
+      try {
+        if (Capacitor.isNativePlatform()) {
+          const { Geolocation } = await import('@capacitor/geolocation');
+          const permissions = await Geolocation.checkPermissions();
+
+          if (permissions.location !== 'granted') {
+            await Geolocation.requestPermissions();
+          }
+
+          const position = await Geolocation.getCurrentPosition({
+            enableHighAccuracy: true,
+            timeout: 10000,
+          });
+
+          setUserLocation(`${position.coords.latitude}, ${position.coords.longitude}`);
+          return;
+        }
+
+        if ('geolocation' in navigator) {
+          navigator.geolocation.getCurrentPosition((position) => {
+            setUserLocation(`${position.coords.latitude}, ${position.coords.longitude}`);
+          });
+        }
+      } catch (err) {
+        console.error('Failed to resolve user location', err);
+      }
+    };
+
+    void resolveUserLocation();
   }, []);
 
   useEffect(() => {
@@ -459,7 +505,7 @@ export default function MobileHome() {
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/[0.15] to-transparent opacity-50" />
         </div>
         
-        <div className="relative flex items-center justify-between px-6 pt-12 pb-8 pointer-events-auto">
+        <div className="relative flex items-center justify-between px-6 pt-[calc(env(safe-area-inset-top)+1rem)] pb-8 pointer-events-auto">
           <div className="flex items-center gap-3">
           {(result || activeTab !== 'home') && (
             <motion.button
@@ -929,7 +975,7 @@ export default function MobileHome() {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 40, opacity: 0, filter: 'blur(10px)' }}
             transition={{ type: 'spring', damping: 25, stiffness: 120 }}
-            className="absolute bottom-0 left-0 right-0 z-30 p-6 pb-12"
+            className="absolute bottom-0 left-0 right-0 z-30 p-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
           >
             <form onSubmit={handleRunAgent} className="relative group max-w-lg mx-auto">
               <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
@@ -1085,3 +1131,6 @@ function NotificationItem({ icon, title, message, time, type = 'system' }: { ico
     </div>
   );
 }
+
+
+

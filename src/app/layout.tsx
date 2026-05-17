@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Playfair_Display, Inter } from "next/font/google";
 import "./globals.css";
 
@@ -22,6 +22,12 @@ const playfair = Playfair_Display({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export const metadata: Metadata = {
   title: "AISO | AI Service Orchestrator",
   description: "Secure agentic service orchestration powered by Google Antigravity",
@@ -38,9 +44,9 @@ export default function RootLayout({
       className={`${inter.variable} ${geistSans.variable} ${geistMono.variable} ${playfair.variable} h-full antialiased`}
     >
       <head>
-        {/* Capacitor Bridge — essential for plugins to work on remote URLs */}
+        {/* Capacitor Bridge - essential for plugins to work on remote URLs */}
         <script src="/capacitor.js" async></script>
-        {/* Runtime env injection — MUST be in head to run before React hydration */}
+        {/* Runtime env injection - MUST be in head to run before React hydration */}
         <script
           dangerouslySetInnerHTML={{
             __html: `window._env_ = {"NEXT_PUBLIC_SUPABASE_URL":"${process.env.NEXT_PUBLIC_SUPABASE_URL || ''}","NEXT_PUBLIC_SUPABASE_ANON_KEY":"${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''}","NEXT_PUBLIC_GOOGLE_MAPS_API_KEY":"${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''}"}`,

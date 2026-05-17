@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "287916802786",
+    "project_id": "aiso-915ba",
+    "storage_bucket": "aiso-915ba.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:287916802786:android:132dfc28c88d6916d054bb",
+        "android_client_info": {
+          "package_name": "com.aiseekho.aiso"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCQgDmQDrVzOK3eBCntt9nlazngeCQ3Ovc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

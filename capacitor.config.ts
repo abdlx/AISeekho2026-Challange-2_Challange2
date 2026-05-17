@@ -28,8 +28,14 @@ const config: CapacitorConfig = {
   server: {
     url: 'https://aiseekho-ch-2-phase-2-835282333422.europe-west1.run.app',
     cleartext: true
+  },
+  plugins: {
+    StatusBar: {
+      overlaysWebView: true,
+      style: 'DARK',
+      backgroundColor: '#00000000'
+    }
   }
 };
 
 export default config;
-
