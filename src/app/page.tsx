@@ -24,6 +24,7 @@ const AGENT_META: Record<string, { label: string; icon: React.ReactNode; color: 
 const SPRING_SNAPPY = { type: 'spring', stiffness: 380, damping: 38, mass: 1 } as const;
 const SPRING_TACTILE = { type: 'spring', stiffness: 300, damping: 28, mass: 1 } as const;
 const SPRING_DRAWER = { type: 'spring', stiffness: 400, damping: 40, mass: 1 } as const;
+const TRANSITION_FAST = { type: 'tween', ease: 'easeOut', duration: 0.15 } as const;
 
 // Variants for staggered container entrances
 const STAGGER_CONTAINER = {
@@ -158,27 +159,27 @@ export default function MobileHome() {
     
     try {
       if (type === 'light') {
-        // Ultra-crisp flagship mechanical click (9ms duration is highly crisp on flagship LRAs)
-        void Haptics.vibrate({ duration: 9 });
+        // Soft organic micro-click (5ms is extremely premium and subtle on flagship LRAs)
+        void Haptics.vibrate({ duration: 5 });
       } else if (type === 'medium') {
-        // Crisp solid click (18ms)
-        void Haptics.vibrate({ duration: 18 });
+        // Soft but distinct tick (11ms)
+        void Haptics.vibrate({ duration: 11 });
       } else if (type === 'success') {
-        // High-end rising double confirmation pattern
-        void Haptics.vibrate({ duration: 12 });
+        // Premium soft double click confirmation pattern
+        void Haptics.vibrate({ duration: 8 });
         setTimeout(() => {
           if (hapticsRef.current) {
-            void hapticsRef.current.vibrate({ duration: 25 });
+            void hapticsRef.current.vibrate({ duration: 12 });
+          }
+        }, 60);
+      } else if (type === 'warning') {
+        // Soft warning double tap
+        void Haptics.vibrate({ duration: 15 });
+        setTimeout(() => {
+          if (hapticsRef.current) {
+            void hapticsRef.current.vibrate({ duration: 8 });
           }
         }, 80);
-      } else if (type === 'warning') {
-        // Warning double pulse
-        void Haptics.vibrate({ duration: 30 });
-        setTimeout(() => {
-          if (hapticsRef.current) {
-            void hapticsRef.current.vibrate({ duration: 15 });
-          }
-        }, 100);
       }
     } catch (err) {
       console.warn('Failed to trigger native haptic click', err);
@@ -741,10 +742,10 @@ export default function MobileHome() {
           {activeTab === 'orders' && (
             <motion.div
               key="orders-tab"
-              initial={{ opacity: 0, x: 25 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -25 }}
-              transition={SPRING_SNAPPY}
+              initial={{ opacity: 0, scale: 0.99 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.99 }}
+              transition={TRANSITION_FAST}
               className="flex flex-col space-y-4 pb-20"
             >
               {/* Header title now handles "Past Orders" */}
@@ -855,10 +856,10 @@ export default function MobileHome() {
           {activeTab === 'alerts' && (
             <motion.div
               key="alerts-tab"
-              initial={{ opacity: 0, x: 25 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -25 }}
-              transition={SPRING_SNAPPY}
+              initial={{ opacity: 0, scale: 0.99 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.99 }}
+              transition={TRANSITION_FAST}
               className="flex flex-col pb-20"
             >
               <div className="flex justify-end mb-6">
@@ -910,34 +911,34 @@ export default function MobileHome() {
           {activeTab === 'settings' && (
             <motion.div
               key="settings-tab"
-              variants={STAGGER_CONTAINER}
-              initial="hidden"
-              animate="show"
-              exit="hidden"
+              initial={{ opacity: 0, scale: 0.99 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.99 }}
+              transition={TRANSITION_FAST}
               className="flex flex-col pb-20"
             >
               {/* Header title now handles "Discovery & Settings" */}
 
               {/* Category Grid */}
-              <motion.div variants={STAGGER_ITEM} className="grid grid-cols-2 gap-4 mb-10">
+              <div className="grid grid-cols-2 gap-4 mb-10">
                 <CategoryCard icon={<Zap className="w-6 h-6" />} label="Electrician" color="bg-amber-500/10 text-amber-400" onClick={() => { void triggerHaptic('light'); setUserInput("I need an electrician near me"); setActiveTab('home'); }} />
                 <CategoryCard icon={<MapPin className="w-6 h-6" />} label="Plumber" color="bg-blue-500/10 text-blue-400" onClick={() => { void triggerHaptic('light'); setUserInput("Find a plumber in my area"); setActiveTab('home'); }} />
                 <CategoryCard icon={<Cpu className="w-6 h-6" />} label="AC Repair" color="bg-sky-500/10 text-sky-400" onClick={() => { void triggerHaptic('light'); setUserInput("Need AC technician for G-13"); setActiveTab('home'); }} />
                 <CategoryCard icon={<Activity className="w-6 h-6" />} label="Gas Fitter" color="bg-red-500/10 text-red-400" onClick={() => { void triggerHaptic('light'); setUserInput("Gas fitter required for kitchen stove"); setActiveTab('home'); }} />
-              </motion.div>
+              </div>
 
               {/* Discovery Prompts */}
-              <motion.div variants={STAGGER_ITEM} className="space-y-4 mb-10">
+              <div className="space-y-4 mb-10">
                 <h3 className="text-[10px] uppercase tracking-[0.3em] text-stone-500 font-bold px-1">Try Asking</h3>
                 <div className="flex flex-col gap-3">
                   <PromptButton text="“Kal subah plumber bhej dein”" onClick={() => { void triggerHaptic('light'); setUserInput("Kal subah plumber bhej dein"); setActiveTab('home'); }} />
                   <PromptButton text="“AC service near DHA Phase 6”" onClick={() => { void triggerHaptic('light'); setUserInput("AC service near DHA Phase 6"); setActiveTab('home'); }} />
                   <PromptButton text="“Emergency electrician needed now”" onClick={() => { void triggerHaptic('light'); setUserInput("Emergency electrician needed now"); setActiveTab('home'); }} />
                 </div>
-              </motion.div>
+              </div>
 
               {/* Profile & Account Section */}
-              <motion.div variants={STAGGER_ITEM} className="space-y-4">
+              <div className="space-y-4">
                 <h3 className="text-[10px] uppercase tracking-[0.3em] text-stone-500 font-bold px-1">Account</h3>
                 <div className="p-6 rounded-3xl bg-white/5 border border-white/10 flex flex-col gap-6">
                   <div className="flex items-center gap-4">
@@ -962,10 +963,10 @@ export default function MobileHome() {
                     <span className="text-sm font-bold">Sign Out</span>
                   </button>
                 </div>
-              </motion.div>
+              </div>
 
               {/* Language Support Badge */}
-              <motion.div variants={STAGGER_ITEM} className="mt-10 p-6 rounded-3xl bg-accent/5 border border-accent/10 flex items-center gap-4">
+              <div className="mt-10 p-6 rounded-3xl bg-accent/5 border border-accent/10 flex items-center gap-4">
                 <div className="p-3 bg-accent/10 rounded-2xl">
                   <Languages className="w-6 h-6 text-accent" />
                 </div>
@@ -973,7 +974,7 @@ export default function MobileHome() {
                   <p className="text-stone-200 text-sm font-medium">Multilingual Support</p>
                   <p className="text-stone-500 text-xs">Chat in Urdu, Roman Urdu, or English.</p>
                 </div>
-              </motion.div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -983,10 +984,10 @@ export default function MobileHome() {
           {activeTab === 'home' && (
             <motion.div
               key="home-tab"
-              initial={{ opacity: 0, x: -25 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 25 }}
-              transition={SPRING_SNAPPY}
+              initial={{ opacity: 0, scale: 0.99 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.99 }}
+              transition={TRANSITION_FAST}
               className="flex-1 flex flex-col"
             >
               {/* Initial Clean State */}
