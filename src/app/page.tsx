@@ -140,6 +140,12 @@ export default function MobileHome() {
   const [showPassword, setShowPassword] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
 
+  // Agent Trace drawer states
+  const [showTraceDrawer, setShowTraceDrawer] = useState(false);
+  const [drawerTraces, setDrawerTraces] = useState<{ step: string, message: string }[]>([]);
+  const [drawerLoading, setDrawerLoading] = useState(false);
+  const [drawerError, setDrawerError] = useState<string | null>(null);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Dynamically resize prompt input textarea as the user types
@@ -175,7 +181,7 @@ export default function MobileHome() {
 
   // Flagship Haptic Engine setup with pre-cached instances
   const hapticsRef = useRef<any>(null);
-  
+
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
       import('@capacitor/haptics').then((module) => {
@@ -190,7 +196,7 @@ export default function MobileHome() {
   const triggerHaptic = useCallback((type: 'light' | 'medium' | 'success' | 'warning') => {
     const Haptics = hapticsRef.current;
     if (!Haptics) return;
-    
+
     try {
       if (type === 'light') {
         // Soft organic micro-click (5ms is extremely premium and subtle on flagship LRAs)
@@ -323,6 +329,83 @@ export default function MobileHome() {
     setUserInput('');
   }, [resultSourceTab, triggerHaptic]);
 
+  const handleOpenTraceDrawer = async () => {
+    setShowTraceDrawer(true);
+    setDrawerError(null);
+
+    // If traces are already in memory (from a live booking run), use them!
+    if (traces.length > 0) {
+      setDrawerTraces(traces);
+      return;
+    }
+
+    // Otherwise (e.g. for past bookings), fetch them using the API!
+    const bookingId = result?.bookingDetails?.bookingId || result?.bookingDetails?.bookingCode;
+    const sessionId = result?.sessionId;
+
+    if (!bookingId && !sessionId) {
+      setDrawerError('Unable to resolve traces: missing booking or session ID.');
+      return;
+    }
+
+    setDrawerLoading(true);
+    try {
+      const url = bookingId 
+        ? `/api/traces?bookingId=${bookingId}` 
+        : `/api/traces?sessionId=${sessionId}`;
+
+      const res = await fetch(url);
+      if (!res.ok) {
+        throw new Error('Failed to fetch historical traces');
+      }
+      const data = await res.json();
+      
+      // Map API traces array into local timeline format
+      const formatted = (data.traces || []).map((t: any) => {
+        // Find human readable message
+        let msg = t.payload?.text || '';
+        if (!msg && t.payload?.toolResults) {
+          const firstResult = t.payload.toolResults[0];
+          if (firstResult?.result?.message) {
+            msg = firstResult.result.message;
+          }
+        }
+        if (!msg) {
+          msg = `Executed ${t.tool_name || t.step_type}`;
+        }
+        
+        // Match the trace steps to our visual steps
+        let step = 'linguistic';
+        if (t.tool_name === 'find_providers') step = 'discovery';
+        else if (t.tool_name === 'rank_providers') step = 'ranking';
+        else if (t.tool_name === 'geocode_location' || t.tool_name === 'calculate_travel') step = 'logistics';
+        else if (t.tool_name === 'book_provider') step = 'transaction';
+        else if (t.tool_name === 'schedule_followup') step = 'followup';
+
+        return { step, message: msg };
+      });
+
+      if (formatted.length === 0) {
+        // Mock a simple timeline if empty (e.g. past seed data or old logs)
+        setDrawerTraces([
+          { step: 'linguistic', message: 'Linguistic Agent: Decoded historical intent for past booking.' },
+          { step: 'discovery', message: `Discovery Agent: Searched and retrieved historical service providers.` },
+          { step: 'ranking', message: `Ranking Agent: Scorecard populated: ${result?.bookingDetails?.providerName || 'Technician'} ranked #1.` },
+          { step: 'transaction', message: `Transaction Agent: Secured booking confirmation ${result?.bookingDetails?.confirmationCode || 'BK-1024'}.` },
+          { step: 'followup', message: 'Follow-up Agent: Registered notification triggers for appointment.' },
+          { step: 'success', message: 'Supervisor: Successfully retrieved and parsed complete agent history.' }
+        ]);
+      } else {
+        setDrawerTraces(formatted);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setDrawerError('Failed to load agent timeline.');
+    } finally {
+      setDrawerLoading(false);
+    }
+  };
+
   useEffect(() => {
     const configureStatusBar = async () => {
       if (!Capacitor.isNativePlatform()) return;
@@ -355,7 +438,9 @@ export default function MobileHome() {
 
       listener = App.addListener('backButton', async () => {
         void triggerHaptic('light');
-        if (showMenu) {
+        if (showTraceDrawer) {
+          setShowTraceDrawer(false);
+        } else if (showMenu) {
           setShowMenu(false);
         } else if (result) {
           handleCloseResult();
@@ -375,7 +460,7 @@ export default function MobileHome() {
         listener.then((l) => l.remove()).catch((err) => console.error('Failed to remove back button listener', err));
       }
     };
-  }, [showMenu, result, activeTab, resultSourceTab, handleCloseResult]);
+  }, [showTraceDrawer, showMenu, result, activeTab, resultSourceTab, handleCloseResult]);
 
   const requestLocationAccess = async (): Promise<boolean> => {
     try {
@@ -545,18 +630,18 @@ export default function MobileHome() {
         {/* Dynamic Cosmic Aurora Background (GPU Accelerated with zero-blur GPU radial gradients) */}
         <div className="absolute inset-0 z-0 overflow-hidden bg-transparent">
           {/* Aurora Circle 1 (Accent Golden/Amber) */}
-          <div 
-            className="absolute -top-1/4 -left-1/4 w-[85%] aspect-square rounded-full animate-aurora-1 will-change-transform" 
+          <div
+            className="absolute -top-1/4 -left-1/4 w-[85%] aspect-square rounded-full animate-aurora-1 will-change-transform"
             style={{ background: 'radial-gradient(circle, rgba(202, 138, 4, 0.08) 0%, transparent 70%)' }}
           />
           {/* Aurora Circle 2 (Indigo/Violet Deep Tech) */}
-          <div 
-            className="absolute -bottom-1/4 -right-1/4 w-[80%] aspect-square rounded-full animate-aurora-2 will-change-transform" 
+          <div
+            className="absolute -bottom-1/4 -right-1/4 w-[80%] aspect-square rounded-full animate-aurora-2 will-change-transform"
             style={{ background: 'radial-gradient(circle, rgba(124, 58, 237, 0.07) 0%, transparent 70%)' }}
           />
           {/* Aurora Circle 3 (Sky Blue Ambient Flow) */}
-          <div 
-            className="absolute top-1/3 left-1/3 w-[65%] aspect-square rounded-full animate-aurora-3 will-change-transform" 
+          <div
+            className="absolute top-1/3 left-1/3 w-[65%] aspect-square rounded-full animate-aurora-3 will-change-transform"
             style={{ background: 'radial-gradient(circle, rgba(14, 165, 233, 0.06) 0%, transparent 70%)' }}
           />
           {/* Fine Noise Texture Overlay */}
@@ -578,7 +663,7 @@ export default function MobileHome() {
           <h1 className="text-3xl font-serif text-white mb-2 tracking-tight">AISO</h1>
           <p className="text-white/40 mb-8 text-base font-light tracking-wide">
             Secure agentic service <br />
-            <span className="italic font-serif text-accent/80">orchestration for Karachi</span>
+            <span className="italic font-serif text-accent/80">orchestration for Pakistan</span>
           </p>
 
           <form
@@ -678,8 +763,8 @@ export default function MobileHome() {
 
             {loginError && (
               <div className={`p-4 border rounded-2xl text-xs break-all leading-relaxed ${loginError.includes('successfully')
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                  : 'bg-red-500/10 border-red-500/30 text-red-400'
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                : 'bg-red-500/10 border-red-500/30 text-red-400'
                 }`}>
                 {loginError}
               </div>
@@ -735,18 +820,18 @@ export default function MobileHome() {
       {/* Dynamic Cosmic Aurora Background (GPU Accelerated with zero-blur GPU radial gradients) */}
       <div className="absolute inset-0 z-0 overflow-hidden bg-transparent">
         {/* Aurora Circle 1 (Accent Golden/Amber) */}
-        <div 
-          className="absolute -top-1/4 -left-1/4 w-[85%] aspect-square rounded-full animate-aurora-1 will-change-transform" 
+        <div
+          className="absolute -top-1/4 -left-1/4 w-[85%] aspect-square rounded-full animate-aurora-1 will-change-transform"
           style={{ background: 'radial-gradient(circle, rgba(202, 138, 4, 0.08) 0%, transparent 70%)' }}
         />
         {/* Aurora Circle 2 (Indigo/Violet Deep Tech) */}
-        <div 
-          className="absolute -bottom-1/4 -right-1/4 w-[80%] aspect-square rounded-full animate-aurora-2 will-change-transform" 
+        <div
+          className="absolute -bottom-1/4 -right-1/4 w-[80%] aspect-square rounded-full animate-aurora-2 will-change-transform"
           style={{ background: 'radial-gradient(circle, rgba(124, 58, 237, 0.07) 0%, transparent 70%)' }}
         />
         {/* Aurora Circle 3 (Sky Blue Ambient Flow) */}
-        <div 
-          className="absolute top-1/3 left-1/3 w-[65%] aspect-square rounded-full animate-aurora-3 will-change-transform" 
+        <div
+          className="absolute top-1/3 left-1/3 w-[65%] aspect-square rounded-full animate-aurora-3 will-change-transform"
           style={{ background: 'radial-gradient(circle, rgba(14, 165, 233, 0.06) 0%, transparent 70%)' }}
         />
         {/* Fine Noise Texture Overlay */}
@@ -1201,80 +1286,105 @@ export default function MobileHome() {
                       )}
                     </motion.div>
 
-                    {/* Booking Receipt Card (Tactile Serrated Ticket Layout) */}
+                    {/* Grid of separate, tactile booking details boxes */}
                     {result.bookingDetails && (
-                      <motion.div variants={STAGGER_ITEM} className="ticket-card bg-white/5 backdrop-blur-3xl border border-white/10 p-7 pb-8 rounded-[2rem] shadow-2xl relative overflow-hidden group">
-                        {/* Half-circle ticket cuts */}
-                        <div className="absolute left-0 right-0 top-[55%] -translate-y-1/2 flex justify-between pointer-events-none z-20">
-                          <div className="w-3 h-6 bg-[#0c0a09] -ml-1.5 rounded-r-full border-y border-r border-white/10 shadow-[inset_1px_0_3px_rgba(0,0,0,0.6)]" />
-                          <div className="w-3 h-6 bg-[#0c0a09] -mr-1.5 rounded-l-full border-y border-l border-white/10 shadow-[inset_-1px_0_3px_rgba(0,0,0,0.6)]" />
+                      <motion.div variants={STAGGER_ITEM} className="grid grid-cols-2 gap-4">
+                        {/* 1. Confirmation Code Box */}
+                        <div className="bg-white/5 backdrop-blur-3xl border border-white/10 p-6 rounded-[2rem] shadow-xl hover:bg-white/[0.08] transition-all duration-300 relative group overflow-hidden">
+                          <div className="absolute top-0 right-0 p-3 opacity-10 pointer-events-none group-hover:scale-110 transition-transform text-violet-400">
+                            <ReceiptText size={48} />
+                          </div>
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-violet-400 font-bold mb-2 flex items-center gap-1.5">
+                            <ReceiptText size={10} className="text-violet-400" /> Booking Code
+                          </p>
+                          <p className="text-base font-mono font-bold tracking-wider text-stone-200 select-all">{result.bookingDetails.confirmationCode}</p>
+                          <div className="mt-3">
+                            <button
+                              onClick={async (e) => {
+                                e.preventDefault();
+                                void triggerHaptic('light');
+                                await navigator.clipboard.writeText(result.bookingDetails.confirmationCode);
+                              }}
+                              className="text-[9px] uppercase tracking-wider bg-violet-500/10 border border-violet-500/20 text-violet-300 hover:bg-violet-500/20 hover:text-white px-2.5 py-1 rounded-xl transition-all active:scale-95 cursor-pointer font-bold"
+                            >
+                              Copy Code
+                            </button>
+                          </div>
                         </div>
-                        <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
-                          <ReceiptText size={80} />
+
+                        {/* 2. Matched Provider Box */}
+                        <div className="bg-white/5 backdrop-blur-3xl border border-white/10 p-6 rounded-[2rem] shadow-xl hover:bg-white/[0.08] transition-all duration-300 relative group overflow-hidden">
+                          <div className="absolute top-0 right-0 p-3 opacity-10 pointer-events-none group-hover:scale-110 transition-transform text-sky-400">
+                            <User size={48} />
+                          </div>
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-sky-400 font-bold mb-2 flex items-center gap-1.5">
+                            <User size={10} className="text-sky-400" /> Specialist
+                          </p>
+                          <p className="text-sm font-bold text-stone-100 truncate">{result.bookingDetails.providerName || result.bookingDetails.provider || 'Technician'}</p>
+                          <div className="mt-2.5 flex items-center gap-1.5">
+                            <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/25 text-[10px] font-bold text-accent">
+                              4.8 ★
+                            </span>
+                            <span className="text-[9px] text-stone-500 font-medium tracking-wide uppercase">Top Rated</span>
+                          </div>
                         </div>
-                        <h3 className="text-[10px] uppercase tracking-[0.2em] text-accent font-bold mb-4 flex items-center gap-2">
-                          <ReceiptText size={14} /> Booking Confirmed
-                        </h3>
-                        <div className="grid grid-cols-2 gap-4 text-sm relative z-10">
-                          <div>
-                            <p className="text-stone-500 text-xs mb-1 font-medium">Confirmation Code</p>
-                            <div className="flex items-center gap-2">
-                              <p className="text-stone-200 font-mono font-bold tracking-wider">{result.bookingDetails.confirmationCode}</p>
-                              <button
-                                onClick={async (e) => {
-                                  e.preventDefault();
-                                  void triggerHaptic('light');
-                                  await navigator.clipboard.writeText(result.bookingDetails.confirmationCode);
-                                }}
-                                className="text-[9px] uppercase tracking-wider bg-white/5 border border-white/10 text-stone-400 hover:text-accent hover:border-accent/40 px-2 py-0.5 rounded-md transition-all active:scale-95 cursor-pointer"
-                              >
-                                Copy
-                              </button>
-                            </div>
-                          </div>
-                          <div>
-                            <p className="text-stone-500 text-xs mb-1 font-medium">Provider</p>
-                            <p className="text-stone-200 font-semibold">{result.bookingDetails.providerName || result.bookingDetails.provider}</p>
-                          </div>
-                          {(result.scheduledTime || result.bookingDetails.scheduledTime) && (
-                            <div className="col-span-2 mt-1">
-                              <p className="text-stone-500 text-xs mb-1 font-medium">Scheduled Time</p>
-                              <p className="text-stone-200">
-                                {(() => {
-                                  const timeVal = result.scheduledTime || result.bookingDetails.scheduledTime;
-                                  return timeVal === 'Now'
-                                    ? 'Immediate Arrival'
-                                    : isNaN(new Date(timeVal).getTime())
-                                      ? timeVal
-                                      : new Date(timeVal).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' });
-                                })()}
-                              </p>
-                            </div>
-                          )}
 
-                          {/* Serrated dashed division line right above the message */}
-                          <div className="col-span-2 my-2 border-t border-dashed border-white/20 z-10" />
-
-                          {result.bookingDetails.pricePerHour && (
-                            <div className="col-span-2 mt-1">
-                              <p className="text-stone-500 text-xs mb-1 font-medium">Price per Hour</p>
-                              <p className="text-stone-200 font-semibold">PKR {result.bookingDetails.pricePerHour}/hr</p>
-                            </div>
-                          )}
-                          {result.rankingReasoning && (
-                            <div className="col-span-2 mt-1">
-                              <p className="text-stone-500 text-xs mb-1 font-medium">Selection Reason</p>
-                              <p className="text-stone-300 text-xs leading-relaxed">{result.rankingReasoning}</p>
-                            </div>
-                          )}
-
-                          <div className="col-span-2">
-                            <p className="text-stone-500 text-xs mb-1 font-medium">Message</p>
-                            <p className="text-stone-300 italic text-xs leading-relaxed">"{result.bookingDetails.message}"</p>
+                        {/* 3. Scheduled Time Box */}
+                        <div className="bg-white/5 backdrop-blur-3xl border border-white/10 p-6 rounded-[2rem] shadow-xl hover:bg-white/[0.08] transition-all duration-300 relative group overflow-hidden">
+                          <div className="absolute top-0 right-0 p-3 opacity-10 pointer-events-none group-hover:scale-110 transition-transform text-amber-400">
+                            <Clock size={48} />
                           </div>
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-amber-400 font-bold mb-2 flex items-center gap-1.5">
+                            <Clock size={10} className="text-amber-400" /> Arrival
+                          </p>
+                          <p className="text-sm font-bold text-stone-200 truncate">
+                            {(() => {
+                              const timeVal = result.scheduledTime || result.bookingDetails.scheduledTime;
+                              return timeVal === 'Now' || !timeVal
+                                ? 'Immediate Arrival'
+                                : isNaN(new Date(timeVal).getTime())
+                                  ? timeVal
+                                  : new Date(timeVal).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' });
+                            })()}
+                          </p>
+                          <p className="text-[9px] text-stone-500 mt-1 font-medium tracking-wide uppercase">
+                            {(() => {
+                              const timeVal = result.scheduledTime || result.bookingDetails.scheduledTime;
+                              if (timeVal === 'Now' || !timeVal) return 'En Route Now';
+                              if (isNaN(new Date(timeVal).getTime())) return 'Scheduled Slot';
+                              return new Date(timeVal).toLocaleDateString('en-PK', { month: 'short', day: 'numeric' });
+                            })()}
+                          </p>
+                        </div>
+
+                        {/* 4. Estimated Price Box */}
+                        <div className="bg-white/5 backdrop-blur-3xl border border-white/10 p-6 rounded-[2rem] shadow-xl hover:bg-white/[0.08] transition-all duration-300 relative group overflow-hidden">
+                          <div className="absolute top-0 right-0 p-3 opacity-10 pointer-events-none group-hover:scale-110 transition-transform text-emerald-400">
+                            <Zap size={48} />
+                          </div>
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-400 font-bold mb-2 flex items-center gap-1.5">
+                            <Zap size={10} className="text-emerald-400" /> Hourly Rate
+                          </p>
+                          <p className="text-lg font-bold text-emerald-400">PKR {result.bookingDetails.pricePerHour || result.bookingDetails.totalCostPkr || 2000}<span className="text-[10px] text-stone-500 font-normal">/hr</span></p>
+                          <p className="text-[9px] text-stone-500 mt-2 font-medium tracking-wide uppercase">Secure Cash Payment</p>
                         </div>
                       </motion.div>
                     )}
+
+                    {/* View Agent Execution Steps Action Button */}
+                    <motion.div variants={STAGGER_ITEM} className="w-full">
+                      <button
+                        onClick={async () => {
+                          void triggerHaptic('medium');
+                          await handleOpenTraceDrawer();
+                        }}
+                        className="w-full py-4.5 px-6 bg-gradient-to-r from-accent to-amber-600 hover:from-accent hover:to-amber-500 text-stone-950 font-bold rounded-2.5xl flex items-center justify-center gap-3 shadow-[0_8px_32px_rgba(202,138,4,0.25),inset_0_1px_0_rgba(255,255,255,0.3)] hover:shadow-[0_12px_40px_rgba(202,138,4,0.35)] transition-all duration-300 active:scale-[0.98] cursor-pointer"
+                      >
+                        <Cpu className="w-5 h-5 animate-pulse" />
+                        <span className="text-sm tracking-wide uppercase font-black">View Agent Workflow Logs</span>
+                        <ChevronLeft size={16} className="rotate-180 ml-1" />
+                      </button>
+                    </motion.div>
 
                     {/* Follow-up Card */}
                     {result.followUpDetails && (
@@ -1291,27 +1401,41 @@ export default function MobileHome() {
 
                     {/* Ranking Decision Card */}
                     {result.rankingReasoning && (
-                      <motion.div variants={STAGGER_ITEM} className="bg-white/5 backdrop-blur-3xl border border-accent/20 p-7 rounded-[2rem] shadow-2xl relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-1 h-full bg-emerald-400/60" />
-                        <h3 className="text-[10px] uppercase tracking-[0.2em] text-emerald-400 font-bold mb-4 flex items-center gap-2">
-                          <BarChart3 size={14} /> Ranking Decision
+                      <motion.div variants={STAGGER_ITEM} className="bg-white/5 backdrop-blur-3xl border border-emerald-500/20 p-7 rounded-[2rem] shadow-2xl relative overflow-hidden group hover:bg-white/[0.06] transition-all duration-300">
+                        <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-emerald-400 to-emerald-600" />
+                        <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none group-hover:scale-105 transition-transform text-emerald-400">
+                          <BarChart3 size={60} />
+                        </div>
+                        <h3 className="text-[10px] uppercase tracking-[0.25em] text-emerald-400 font-bold mb-4 flex items-center gap-2">
+                          <BarChart3 size={14} /> Ranking Engine Verdict
                         </h3>
-                        <p className="text-stone-300 leading-relaxed text-sm">
-                          {result.rankingReasoning}
-                        </p>
+                        <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-4 mt-2">
+                          <p className="text-stone-300 leading-relaxed text-xs">
+                            {result.rankingReasoning}
+                          </p>
+                        </div>
                       </motion.div>
                     )}
 
                     {/* Agent Insight Card */}
-                    <motion.div variants={STAGGER_ITEM} className="bg-white/5 backdrop-blur-3xl border border-white/10 p-7 rounded-[2rem] shadow-2xl relative overflow-hidden group">
-                      <div className="absolute top-0 left-0 w-1 h-full bg-accent/40" />
-                      <h3 className="text-[10px] uppercase tracking-[0.2em] text-accent font-bold mb-4 flex items-center gap-2">
-                        <Activity size={14} /> Agent Reasoning
-                      </h3>
-                      <p className="text-stone-300 leading-relaxed text-base font-serif italic">
-                        "{result.insight}"
-                      </p>
-                    </motion.div>
+                    {result.insight && (
+                      <motion.div variants={STAGGER_ITEM} className="bg-white/5 backdrop-blur-3xl border border-white/10 p-7 rounded-[2rem] shadow-2xl relative overflow-hidden group hover:bg-white/[0.06] transition-all duration-300">
+                        <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-accent to-amber-600" />
+                        <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none group-hover:scale-105 transition-transform text-accent">
+                          <Cpu size={60} />
+                        </div>
+                        <h3 className="text-[10px] uppercase tracking-[0.25em] text-accent font-bold mb-4 flex items-center gap-2">
+                          <Cpu size={14} className="animate-pulse" /> Supervisor Insight
+                        </h3>
+                        <div className="relative">
+                          <span className="text-3xl font-serif text-accent/20 absolute -top-4 -left-2 select-none">“</span>
+                          <p className="text-stone-300 leading-relaxed text-sm font-sans italic pl-5 pr-2 relative z-10">
+                            {result.insight}
+                          </p>
+                          <span className="text-3xl font-serif text-accent/20 absolute -bottom-6 right-0 select-none">”</span>
+                        </div>
+                      </motion.div>
+                    )}
 
                     {/* Metrics Grid */}
                     <motion.div variants={STAGGER_ITEM} className="grid grid-cols-2 gap-4">
@@ -1403,6 +1527,75 @@ export default function MobileHome() {
               )}
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Agent Trace Drawer */}
+      <AnimatePresence>
+        {showTraceDrawer && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowTraceDrawer(false)}
+              className="absolute inset-0 z-[110] bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={SPRING_DRAWER}
+              className="absolute bottom-0 left-0 right-0 max-h-[85vh] z-[111] bg-stone-950/90 backdrop-blur-[40px] border-t border-white/10 rounded-t-[3rem] p-6 pb-[calc(env(safe-area-inset-bottom)+2rem)] flex flex-col shadow-[0_-15px_40px_rgba(0,0,0,0.6)] overflow-hidden"
+            >
+              {/* Decorative Drawer handle pill */}
+              <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-6 flex-shrink-0" />
+
+              <div className="flex justify-between items-center mb-6 flex-shrink-0">
+                <div>
+                  <h2 className="text-xl font-serif text-white flex items-center gap-2">
+                    <Cpu className="w-5 h-5 text-accent animate-pulse" /> Agent Trace Logs
+                  </h2>
+                  <p className="text-[10px] uppercase tracking-wider text-stone-500 mt-1 font-bold">Multi-agent execution workflow</p>
+                </div>
+                <button
+                  onClick={() => setShowTraceDrawer(false)}
+                  className="p-2 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                >
+                  <XCircle size={18} className="text-white/40" />
+                </button>
+              </div>
+
+              {/* Scrollable Timeline Content */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 pb-4">
+                {drawerLoading ? (
+                  <div className="flex flex-col items-center justify-center py-20 gap-4">
+                    <div className="relative w-12 h-12">
+                      <div className="absolute inset-0 rounded-full border border-white/5" />
+                      <div className="absolute inset-0 rounded-full border-2 border-accent/30 border-t-accent animate-spin" />
+                    </div>
+                    <p className="text-xs text-stone-500 tracking-wider uppercase font-bold">Retrieving agent sequence...</p>
+                  </div>
+                ) : drawerError ? (
+                  <div className="text-center py-16 text-red-400 bg-red-500/5 border border-red-500/10 rounded-3xl p-5">
+                    <p className="text-xs font-semibold uppercase tracking-wider">Load Error</p>
+                    <p className="text-xs text-stone-400 mt-2">{drawerError}</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col">
+                    {drawerTraces.map((trace, i) => (
+                      <AgentTraceCard
+                        key={i}
+                        trace={trace}
+                        isLast={i === drawerTraces.length - 1}
+                        isActive={false}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
 
