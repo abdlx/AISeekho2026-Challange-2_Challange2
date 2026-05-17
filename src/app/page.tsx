@@ -88,7 +88,8 @@ export default function MobileHome() {
   const [error, setError] = useState<string | null>(null);
   const [traces, setTraces] = useState<{ step: string, message: string }[]>([]);
   const [userInput, setUserInput] = useState('');
-  const [userLocation, setUserLocation] = useState("33.6844, 73.0479");
+  const [userLocation, setUserLocation] = useState('');
+  const [locationAccessGranted, setLocationAccessGranted] = useState(false);
   const [bookingStatus, setBookingStatus] = useState<string>('Confirmed');
   const [user, setUser] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
@@ -198,37 +199,50 @@ export default function MobileHome() {
     void configureStatusBar();
   }, []);
 
-  useEffect(() => {
-    const resolveUserLocation = async () => {
-      try {
-        if (Capacitor.isNativePlatform()) {
-          const { Geolocation } = await import('@capacitor/geolocation');
-          const permissions = await Geolocation.checkPermissions();
+  const requestLocationAccess = async (): Promise<boolean> => {
+    try {
+      if (Capacitor.isNativePlatform()) {
+        const { Geolocation } = await import('@capacitor/geolocation');
+        const permissions = await Geolocation.checkPermissions();
 
-          if (permissions.location !== 'granted') {
-            await Geolocation.requestPermissions();
+        if (permissions.location !== 'granted') {
+          const requested = await Geolocation.requestPermissions();
+          if (requested.location !== 'granted') {
+            setLocationAccessGranted(false);
+            return false;
           }
-
-          const position = await Geolocation.getCurrentPosition({
-            enableHighAccuracy: true,
-            timeout: 10000,
-          });
-
-          setUserLocation(`${position.coords.latitude}, ${position.coords.longitude}`);
-          return;
         }
 
-        if ('geolocation' in navigator) {
-          navigator.geolocation.getCurrentPosition((position) => {
-            setUserLocation(`${position.coords.latitude}, ${position.coords.longitude}`);
-          });
-        }
-      } catch (err) {
-        console.error('Failed to resolve user location', err);
+        const position = await Geolocation.getCurrentPosition({
+          enableHighAccuracy: true,
+          timeout: 10000,
+        });
+
+        setUserLocation(`${position.coords.latitude}, ${position.coords.longitude}`);
+        setLocationAccessGranted(true);
+        return true;
       }
-    };
 
-    void resolveUserLocation();
+      if ('geolocation' in navigator) {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 });
+        });
+        setUserLocation(`${position.coords.latitude}, ${position.coords.longitude}`);
+        setLocationAccessGranted(true);
+        return true;
+      }
+
+      setLocationAccessGranted(false);
+      return false;
+    } catch (err) {
+      console.error('Failed to resolve user location', err);
+      setLocationAccessGranted(false);
+      return false;
+    }
+  };
+
+  useEffect(() => {
+    void requestLocationAccess();
   }, []);
 
   useEffect(() => {
@@ -243,9 +257,17 @@ export default function MobileHome() {
   const handleRunAgent = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!userInput.trim()) return;
+    setError(null);
+
+    if (!locationAccessGranted || !userLocation) {
+      const granted = await requestLocationAccess();
+      if (!granted) {
+        setError('Location access is required before sending a request. Please allow location permission and try again.');
+        return;
+      }
+    }
 
     setLoading(true);
-    setError(null);
     setResult(null);
     setTraces([]);
 
@@ -977,7 +999,7 @@ export default function MobileHome() {
             transition={{ type: 'spring', damping: 25, stiffness: 120 }}
             className="absolute bottom-0 left-0 right-0 z-30 p-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
           >
-            <form onSubmit={handleRunAgent} className="relative group max-w-lg mx-auto">
+            <form onSubmit={handleRunAgent} className="relative group max-w-lg mx-auto space-y-3">
               <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
                 <MapPin size={18} className="text-accent/60" />
               </div>
@@ -985,18 +1007,34 @@ export default function MobileHome() {
                 type="text"
                 value={userInput}
                 onChange={(e) => setUserInput(e.target.value)}
-                disabled={loading}
-                placeholder="Type your request here..."
+                disabled={loading || !locationAccessGranted}
+                placeholder={locationAccessGranted ? "Type your request here..." : "Allow location access to continue..."}
                 className="w-full bg-stone-900/30 backdrop-blur-[32px] saturate-[180%] border border-white/[0.08] text-white placeholder-stone-500 rounded-3xl py-5 pl-14 pr-16 shadow-[0_16px_40px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.1)] focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 transition-all disabled:opacity-50 font-sans tracking-tight"
               />
               <motion.button
                 type="submit"
                 whileTap={{ scale: 0.85 }}
-                disabled={loading || !userInput.trim()}
+                disabled={loading || !userInput.trim() || !locationAccessGranted}
                 className="absolute inset-y-2.5 right-2.5 aspect-square bg-accent hover:bg-accent/90 disabled:bg-stone-800 disabled:text-stone-500 text-stone-950 rounded-2xl flex items-center justify-center transition-all shadow-[0_4px_20px_rgba(202,138,4,0.3),inset_0_1px_0_rgba(255,255,255,0.3)] disabled:shadow-none"
               >
                 <Send size={18} className={userInput.trim() ? "ml-0.5" : ""} />
               </motion.button>
+              {!locationAccessGranted && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const granted = await requestLocationAccess();
+                    if (!granted) {
+                      setError('Location access is required before sending a request. Please allow location permission and try again.');
+                    } else {
+                      setError(null);
+                    }
+                  }}
+                  className="w-full text-xs text-accent/90 border border-accent/30 bg-accent/10 hover:bg-accent/15 rounded-2xl py-2.5 transition-colors"
+                >
+                  Allow location access
+                </button>
+              )}
             </form>
           </motion.div>
         )}
