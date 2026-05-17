@@ -51,7 +51,8 @@ export async function transactionAgent(
       bookingId: data.id,
       scheduledTime: finalTime.toISOString()
     };
-  } catch (error: any) {
-    return { success: false, error: error.message || 'Unknown error during transaction' };
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Unknown error during transaction';
+    return { success: false, error: msg };
   }
 }

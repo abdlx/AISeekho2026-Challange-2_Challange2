@@ -49,7 +49,7 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       })
-      .catch((err) => {
+      .catch(() => {
         console.log('[Service Worker] Network failed, looking in cache for:', event.request.url);
         
         return caches.match(event.request).then((cachedResponse) => {

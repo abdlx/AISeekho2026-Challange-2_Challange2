@@ -37,7 +37,8 @@ Determine the user's preference priority based on the following triggers:
     });
 
     return { success: true, data: result.object };
-  } catch (error: any) {
-    return { success: false, error: error.message || 'Unknown error in Linguistic Agent' };
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Unknown error in Linguistic Agent';
+    return { success: false, error: msg };
   }
 }

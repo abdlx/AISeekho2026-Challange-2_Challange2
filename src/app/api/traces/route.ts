@@ -26,12 +26,19 @@ export async function GET(req: Request) {
     }
 
     const matchedTrace = traces?.find(t => {
-      const payload = t.payload as any;
+      const payload = t.payload as {
+        toolResults?: {
+          toolName: string;
+          result?: {
+            bookingId?: string | number;
+          };
+        }[];
+      } | null;
       if (!payload) return false;
 
       // Extract from standard step toolResults structure
       if (Array.isArray(payload.toolResults)) {
-        return payload.toolResults.some((tr: any) => 
+        return payload.toolResults.some((tr) => 
           tr.toolName === 'book_provider' && 
           tr.result && 
           (String(tr.result.bookingId) === bookingId || 

@@ -200,7 +200,16 @@ export default function MobileHome() {
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 180)}px`;
+      const scrollHeight = textareaRef.current.scrollHeight;
+      // Cap maximum height at 120px (exactly 5 lines of text + padding)
+      textareaRef.current.style.height = `${Math.min(scrollHeight, 120)}px`;
+      
+      // Hide scrollbar until content exceeds 5 lines
+      if (scrollHeight > 120) {
+        textareaRef.current.style.overflowY = 'auto';
+      } else {
+        textareaRef.current.style.overflowY = 'hidden';
+      }
     }
   }, [userInput]);
 
@@ -660,7 +669,6 @@ export default function MobileHome() {
     }
   };
 
-  const showNav = !!result && !loading;
   const showInput = !result && !loading;
 
   if (authLoading) {
@@ -1540,8 +1548,8 @@ export default function MobileHome() {
             className="absolute bottom-0 left-0 right-0 z-30 p-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
           >
             <div className="max-w-lg mx-auto space-y-3">
-              <form onSubmit={handleRunAgent} className="relative group">
-                <div className="absolute top-[18px] left-5 flex items-start pointer-events-none">
+              <form onSubmit={handleRunAgent} className="w-full bg-stone-900/30 backdrop-blur-[32px] saturate-[180%] border border-white/[0.08] text-white placeholder-stone-500 rounded-3xl pl-5 pr-2.5 py-[9px] shadow-[0_16px_40px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.1)] focus-within:ring-1 focus-within:ring-accent/40 focus-within:border-accent/40 transition-all flex items-center min-h-[58px] group">
+                <div className="flex-shrink-0 mr-3.5 flex items-center justify-center pointer-events-none">
                   <MapPin size={18} className="text-accent/60" />
                 </div>
                 <textarea
@@ -1551,34 +1559,36 @@ export default function MobileHome() {
                   onChange={(e) => setUserInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   disabled={loading || !locationAccessGranted}
-                  placeholder={locationAccessGranted ? "Type your request here..." : "Allow location access to continue..."}
-                  className="w-full bg-stone-900/30 backdrop-blur-[32px] saturate-[180%] border border-white/[0.08] text-white placeholder-stone-500 rounded-3xl py-[18px] pl-14 pr-16 shadow-[0_16px_40px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.1)] focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 transition-all disabled:opacity-50 font-sans tracking-tight resize-none overflow-y-auto min-h-[58px] max-h-[180px] leading-relaxed"
+                  placeholder={locationAccessGranted ? "Type your request here..." : "Enable location to continue"}
+                  className="flex-1 bg-transparent border-none outline-none focus:outline-none focus:ring-0 text-white placeholder-stone-500 font-sans tracking-tight resize-none overflow-hidden max-h-[120px] leading-[20px] py-[10px] pr-2 disabled:opacity-50"
                 />
-                {locationAccessGranted ? (
-                  <motion.button
-                    type="submit"
-                    whileTap={{ scale: 0.85 }}
-                    disabled={loading || !userInput.trim()}
-                    className="absolute bottom-[9px] right-2.5 w-[40px] h-[40px] bg-accent hover:bg-accent/90 disabled:bg-stone-800 disabled:text-stone-500 text-stone-950 rounded-2xl flex items-center justify-center transition-all shadow-[0_4px_20px_rgba(202,138,4,0.3),inset_0_1px_0_rgba(255,255,255,0.3)] disabled:shadow-none"
-                  >
-                    <Send size={18} className={userInput.trim() ? "ml-0.5" : ""} />
-                  </motion.button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const granted = await requestLocationAccess();
-                      if (!granted) {
-                        setError('Location access is required before sending a request. Please allow location permission and try again.');
-                      } else {
-                        setError(null);
-                      }
-                    }}
-                    className="absolute bottom-[9px] right-2.5 h-[40px] px-4 bg-accent/15 border border-accent/40 text-accent rounded-2xl text-xs font-semibold tracking-wide hover:bg-accent/20 transition-colors"
-                  >
-                    Allow
-                  </button>
-                )}
+                <div className="flex-shrink-0 ml-2 flex items-center justify-center">
+                  {locationAccessGranted ? (
+                    <motion.button
+                      type="submit"
+                      whileTap={{ scale: 0.85 }}
+                      disabled={loading || !userInput.trim()}
+                      className="w-[40px] h-[40px] bg-accent hover:bg-accent/90 disabled:bg-stone-800 disabled:text-stone-500 text-stone-950 rounded-2xl flex items-center justify-center transition-all shadow-[0_4px_20px_rgba(202,138,4,0.3),inset_0_1px_0_rgba(255,255,255,0.3)] disabled:shadow-none"
+                    >
+                      <Send size={18} className={userInput.trim() ? "ml-0.5" : ""} />
+                    </motion.button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const granted = await requestLocationAccess();
+                        if (!granted) {
+                          setError('Location access is required before sending a request. Please allow location permission and try again.');
+                        } else {
+                          setError(null);
+                        }
+                      }}
+                      className="h-[40px] px-4 bg-accent/15 border border-accent/40 text-accent rounded-2xl text-xs font-semibold tracking-wide hover:bg-accent/20 transition-colors"
+                    >
+                      Allow
+                    </button>
+                  )}
+                </div>
               </form>
               {!locationAccessGranted && (
                 <p className="text-center text-[11px] text-stone-400">
