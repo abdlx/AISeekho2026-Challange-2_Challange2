@@ -624,17 +624,19 @@ export default function MobileHome() {
     }
   }, [result]);
 
-  const handleRunAgent = async (e?: React.FormEvent) => {
+  const handleRunAgent = async (e?: React.FormEvent, overrideInput?: string) => {
     if (e) e.preventDefault();
-    if (!userInput.trim()) return;
+    const finalInput = (overrideInput || userInput).trim();
+    if (!finalInput) return;
+    setUserInput(finalInput);
     setError(null);
-
+ 
     if (!navigator.onLine) {
       setError('You are offline. Please connect to the internet to run the service orchestrator.');
       void triggerHaptic('warning');
       return;
     }
-
+ 
     if (!locationAccessGranted || !userLocation) {
       const granted = await requestLocationAccess();
       if (!granted) {
@@ -643,24 +645,24 @@ export default function MobileHome() {
         return;
       }
     }
-
+ 
     void triggerHaptic('medium');
     setLoading(true);
     setResult(null);
     setResultSourceTab(null);
     setTraces([]);
-
+ 
     try {
       const response = await fetch('/api/orchestrate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId: crypto.randomUUID(),
-          userInput: userInput,
+          userInput: finalInput,
           userLocation: userLocation
         })
       });
-
+ 
       if (!response.ok) {
         const data = await response.json();
         throw new Error(data.error || 'Failed to run agent');
@@ -1281,6 +1283,36 @@ export default function MobileHome() {
                         What do you <br />
                         <span className="font-serif italic font-normal text-accent">need today?</span>
                       </h2>
+
+                      {/* Premium Quick Suggestion Chips */}
+                      <motion.div
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.35, duration: 0.55, ease: 'easeOut' }}
+                        className="flex flex-wrap gap-2.5 justify-center max-w-sm px-4 mt-8 relative z-10"
+                      >
+                        {[
+                          { text: 'Emergency Plumber', prompt: 'I need a plumber immediately for leakage', icon: <MapPin className="w-3.5 h-3.5 text-blue-400" /> },
+                          { text: 'AC Service DHA', prompt: 'AC service k liye technician chahiye DHA Phase 6 mein', icon: <Activity className="w-3.5 h-3.5 text-sky-400" /> },
+                          { text: 'Budget Electrician', prompt: 'Kam budget mein ghar ka board repair karne k liye electrician chahiye', icon: <Zap className="w-3.5 h-3.5 text-amber-400" /> },
+                        ].map((chip, index) => (
+                          <motion.button
+                            key={index}
+                            whileHover={{ scale: 1.04, backgroundColor: 'rgba(255, 255, 255, 0.05)', borderColor: 'rgba(255, 255, 255, 0.12)' }}
+                            whileTap={{ scale: 0.96 }}
+                            onClick={() => {
+                              void handleRunAgent(undefined, chip.prompt);
+                            }}
+                            className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-full bg-white/[0.025] border border-white/[0.06] hover:border-white/12 text-stone-300 hover:text-white transition-all duration-300 cursor-pointer shadow-[0_4px_12px_rgba(0,0,0,0.15)] text-xs font-semibold select-none group"
+                          >
+                            <div className="flex items-center gap-2">
+                              {chip.icon}
+                              <span>{chip.text}</span>
+                            </div>
+                            <Send className="w-2.5 h-2.5 opacity-40 text-stone-500 group-hover:text-stone-300 group-hover:opacity-75 transition-all rotate-45 transform" />
+                          </motion.button>
+                        ))}
+                      </motion.div>
                     </div>
                   </motion.div>
                 )}
