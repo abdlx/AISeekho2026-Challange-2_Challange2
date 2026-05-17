@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, Home, Search, Clock, Send, MapPin, CheckCircle2, Activity, ChevronLeft, ReceiptText, BellRing, Navigation2, LogOut, Package, Zap, BarChart3, Languages, XCircle, Cpu, Settings, Info } from 'lucide-react';
+import { Menu, Home, Search, Clock, Send, MapPin, CheckCircle2, Activity, ChevronLeft, ReceiptText, BellRing, Navigation2, LogOut, Package, Zap, BarChart3, Languages, XCircle, Cpu, Settings, Info, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
 import OrchestratorMap from './components/OrchestratorMap';
 import { createClientAsync } from '@/lib/supabase';
-import { signInWithGoogle, signOut } from './actions/auth';
+import { signInWithEmailPassword, signUpWithEmailPassword, signOut } from './actions/auth';
 
 const AGENT_META: Record<string, { label: string; icon: React.ReactNode; color: string; accent: string }> = {
   linguistic: { label: 'Linguistic Agent', icon: <Languages className="w-4 h-4" />, color: 'text-violet-400', accent: 'bg-violet-500/10 border-violet-500/20 shadow-[inset_0_0_20px_rgba(167,139,250,0.08)]' },
@@ -96,6 +96,11 @@ export default function MobileHome() {
   const [scrolled, setScrolled] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Pick up login errors from the auth callback redirect
   useEffect(() => {
@@ -279,50 +284,151 @@ export default function MobileHome() {
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8, ease: [0.23, 1, 0.32, 1] }}
-          className="w-full max-w-md bg-white/5 border border-white/10 backdrop-blur-[32px] rounded-[3rem] p-12 text-center relative z-10 shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
+          className="w-full max-w-md bg-white/5 border border-white/10 backdrop-blur-[32px] rounded-[3rem] p-10 text-center relative z-10 shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
         >
-          <div className="w-24 h-24 bg-accent/10 border border-accent/20 rounded-[2rem] flex items-center justify-center mx-auto mb-10 shadow-[inset_0_0_30px_rgba(202,138,4,0.1)] relative">
+          <div className="w-20 h-20 bg-accent/10 border border-accent/20 rounded-[1.75rem] flex items-center justify-center mx-auto mb-6 shadow-[inset_0_0_30px_rgba(202,138,4,0.1)] relative">
             <div className="absolute inset-0 bg-accent/20 blur-2xl rounded-full" />
-            <Zap className="w-12 h-12 text-accent relative z-10" />
+            <Zap className="w-10 h-10 text-accent relative z-10 animate-pulse" />
           </div>
 
-          <h1 className="text-4xl font-serif text-white mb-4 tracking-tight">AISO</h1>
-          <p className="text-white/40 mb-12 text-lg font-light tracking-wide">
+          <h1 className="text-3xl font-serif text-white mb-2 tracking-tight">AISO</h1>
+          <p className="text-white/40 mb-8 text-base font-light tracking-wide">
             Secure agentic service <br />
             <span className="italic font-serif text-accent/80">orchestration for Karachi</span>
           </p>
 
-          <motion.button
-            onClick={async () => {
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!email.trim() || !password.trim()) {
+                setLoginError('Email and Password are required.');
+                return;
+              }
+              if (isSignUp && !fullName.trim()) {
+                setLoginError('Full name is required to create an account.');
+                return;
+              }
               setLoginError(null);
               setLoginLoading(true);
               try {
-                await signInWithGoogle();
+                if (isSignUp) {
+                  await signUpWithEmailPassword(email, password, fullName);
+                  setLoginError('Account created successfully! Please check your email for a verification link or sign in.');
+                  setIsSignUp(false);
+                } else {
+                  await signInWithEmailPassword(email, password);
+                }
               } catch (err: any) {
                 setLoginError(err?.message || String(err));
               } finally {
                 setLoginLoading(false);
               }
             }}
-            whileTap={{ scale: 0.96 }}
-            disabled={loginLoading}
-            className="w-full h-16 bg-white/10 hover:bg-white/15 border border-white/10 backdrop-blur-xl text-white rounded-[1.5rem] font-medium text-lg flex items-center justify-center gap-4 transition-all active:scale-[0.98] group disabled:opacity-60"
+            className="space-y-4 text-left"
           >
-            <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-              <img src="https://www.google.com/favicon.ico" className="w-4 h-4" alt="Google" />
-            </div>
-            {loginLoading ? 'Signing in...' : 'Continue with Google'}
-          </motion.button>
+            {/* Input field wrapper */}
+            <div className="space-y-3.5">
+              <AnimatePresence initial={false} mode="popLayout">
+                {isSignUp && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0, y: -10 }}
+                    animate={{ opacity: 1, height: 'auto', y: 0 }}
+                    exit={{ opacity: 0, height: 0, y: -10 }}
+                    transition={{ duration: 0.25, ease: 'easeInOut' }}
+                    className="relative overflow-hidden"
+                  >
+                    <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-stone-400">
+                      <User size={18} />
+                    </div>
+                    <input
+                      type="text"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="Full Name"
+                      className="w-full bg-stone-900/30 border border-white/[0.08] text-white placeholder-stone-500 rounded-2xl py-4 pl-12 pr-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 transition-all font-sans text-sm"
+                      required
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-          {loginError && (
-            <div className="mt-4 p-4 bg-red-500/10 border border-red-500/30 rounded-2xl text-red-400 text-sm text-left break-all">
-              {loginError}
-            </div>
-          )}
+              <div className="relative">
+                <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-stone-400">
+                  <Mail size={18} />
+                </div>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Email Address"
+                  className="w-full bg-stone-900/30 border border-white/[0.08] text-white placeholder-stone-500 rounded-2xl py-4 pl-12 pr-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 transition-all font-sans text-sm"
+                  required
+                />
+              </div>
 
-          <div className="mt-12 pt-10 border-t border-white/5 flex flex-col gap-2">
-            <span className="text-[10px] uppercase tracking-[0.3em] text-white/20 font-bold">#AISeekho2026 Challenge 2</span>
-            <span className="text-[10px] uppercase tracking-[0.2em] text-accent/40 font-bold">Secure Orchestration Layer</span>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-stone-400">
+                  <Lock size={18} />
+                </div>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Password"
+                  className="w-full bg-stone-900/30 border border-white/[0.08] text-white placeholder-stone-500 rounded-2xl py-4 pl-12 pr-12 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 transition-all font-sans text-sm"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-4 flex items-center text-stone-400 hover:text-stone-200 focus:outline-none"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+
+            {loginError && (
+              <div className={`p-4 border rounded-2xl text-xs break-all leading-relaxed ${
+                loginError.includes('successfully') 
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
+                  : 'bg-red-500/10 border-red-500/30 text-red-400'
+              }`}>
+                {loginError}
+              </div>
+            )}
+
+            <motion.button
+              type="submit"
+              whileTap={{ scale: 0.97 }}
+              disabled={loginLoading}
+              className="w-full h-14 mt-2 bg-accent hover:bg-accent/90 disabled:opacity-50 text-stone-950 font-bold rounded-2xl flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(202,138,4,0.3),inset_0_1px_0_rgba(255,255,255,0.3)] transition-all cursor-pointer"
+            >
+              {loginLoading ? (
+                <div className="w-5 h-5 rounded-full border-2 border-stone-950 border-t-transparent animate-spin" />
+              ) : isSignUp ? (
+                'Create Account'
+              ) : (
+                'Sign In'
+              )}
+            </motion.button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <button
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setLoginError(null);
+              }}
+              className="text-xs text-stone-400 hover:text-white transition-colors underline underline-offset-4 cursor-pointer"
+            >
+              {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
+            </button>
+          </div>
+
+          <div className="mt-10 pt-8 border-t border-white/5 flex flex-col gap-1.5">
+            <span className="text-[9px] uppercase tracking-[0.3em] text-white/20 font-bold">#AISeekho2026 Challenge 2</span>
+            <span className="text-[9px] uppercase tracking-[0.2em] text-accent/40 font-bold">Secure Orchestration Layer</span>
           </div>
         </motion.div>
       </div>

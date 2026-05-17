@@ -4,5 +4,6 @@
     <string name="title_activity_main">AISO</string>
     <string name="package_name">com.aiseekho.aiso</string>
     <string name="custom_url_scheme">com.aiseekho.aiso</string>
-    <string name="server_client_id">835282333422-fjkf2qs15n6f9f11hqugf6d7ffbf5llf.apps.googleusercontent.com</string>
+    <string name="server_client_id">835282333422-k5cp523oie3k94vrsbiba0k7gb698kqa.apps.googleusercontent.com</string>
+    <string name="default_web_client_id">835282333422-k5cp523oie3k94vrsbiba0k7gb698kqa.apps.googleusercontent.com</string>
 </resources>
