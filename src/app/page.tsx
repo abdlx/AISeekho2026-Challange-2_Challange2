@@ -140,6 +140,24 @@ export default function MobileHome() {
   const [showPassword, setShowPassword] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
 
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Dynamically resize prompt input textarea as the user types
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 180)}px`;
+    }
+  }, [userInput]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Submit on Enter, insert newline on Shift+Enter
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      void handleRunAgent();
+    }
+  };
+
   // Monitor network connection status
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -1339,23 +1357,25 @@ export default function MobileHome() {
           >
             <div className="max-w-lg mx-auto space-y-3">
               <form onSubmit={handleRunAgent} className="relative group">
-                <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
+                <div className="absolute top-[18px] left-5 flex items-start pointer-events-none">
                   <MapPin size={18} className="text-accent/60" />
                 </div>
-                <input
-                  type="text"
+                <textarea
+                  ref={textareaRef}
+                  rows={1}
                   value={userInput}
                   onChange={(e) => setUserInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
                   disabled={loading || !locationAccessGranted}
                   placeholder={locationAccessGranted ? "Type your request here..." : "Allow location access to continue..."}
-                  className="w-full bg-stone-900/30 backdrop-blur-[32px] saturate-[180%] border border-white/[0.08] text-white placeholder-stone-500 rounded-3xl py-5 pl-14 pr-16 shadow-[0_16px_40px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.1)] focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 transition-all disabled:opacity-50 font-sans tracking-tight"
+                  className="w-full bg-stone-900/30 backdrop-blur-[32px] saturate-[180%] border border-white/[0.08] text-white placeholder-stone-500 rounded-3xl py-[18px] pl-14 pr-16 shadow-[0_16px_40px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.1)] focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 transition-all disabled:opacity-50 font-sans tracking-tight resize-none overflow-y-auto min-h-[58px] max-h-[180px] leading-relaxed"
                 />
                 {locationAccessGranted ? (
                   <motion.button
                     type="submit"
                     whileTap={{ scale: 0.85 }}
                     disabled={loading || !userInput.trim()}
-                    className="absolute inset-y-2.5 right-2.5 aspect-square bg-accent hover:bg-accent/90 disabled:bg-stone-800 disabled:text-stone-500 text-stone-950 rounded-2xl flex items-center justify-center transition-all shadow-[0_4px_20px_rgba(202,138,4,0.3),inset_0_1px_0_rgba(255,255,255,0.3)] disabled:shadow-none"
+                    className="absolute bottom-[9px] right-2.5 w-[40px] h-[40px] bg-accent hover:bg-accent/90 disabled:bg-stone-800 disabled:text-stone-500 text-stone-950 rounded-2xl flex items-center justify-center transition-all shadow-[0_4px_20px_rgba(202,138,4,0.3),inset_0_1px_0_rgba(255,255,255,0.3)] disabled:shadow-none"
                   >
                     <Send size={18} className={userInput.trim() ? "ml-0.5" : ""} />
                   </motion.button>
@@ -1370,7 +1390,7 @@ export default function MobileHome() {
                         setError(null);
                       }
                     }}
-                    className="absolute inset-y-2.5 right-2.5 px-4 bg-accent/15 border border-accent/40 text-accent rounded-2xl text-xs font-semibold tracking-wide hover:bg-accent/20 transition-colors"
+                    className="absolute bottom-[9px] right-2.5 h-[40px] px-4 bg-accent/15 border border-accent/40 text-accent rounded-2xl text-xs font-semibold tracking-wide hover:bg-accent/20 transition-colors"
                   >
                     Allow
                   </button>
