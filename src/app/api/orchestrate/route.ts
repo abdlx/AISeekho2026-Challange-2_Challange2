@@ -63,8 +63,8 @@ export async function POST(req: Request) {
             return;
           }
           const linguisticAnalysis = linguisticResult.data;
-
-          sendTrace('success', `Service: ${linguisticAnalysis.serviceType} | Location: ${linguisticAnalysis.locationName || 'None'} | Urgency: ${linguisticAnalysis.urgency}`);
+          const displayLocation = linguisticAnalysis.locationName || userLocation;
+          sendTrace('success', `Service: ${linguisticAnalysis.serviceType} | Location: ${displayLocation} | Urgency: ${linguisticAnalysis.urgency}`);
 
           await adminClient.from('agent_traces').insert({
             session_id: sessionId,

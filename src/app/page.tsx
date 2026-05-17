@@ -765,7 +765,11 @@ export default function MobileHome() {
                   >
                     <div className="flex-1 flex flex-col justify-center pb-20 text-center items-center">
                       <p className="font-serif text-foreground/80 text-lg mb-2 tracking-widest uppercase">
-                        Hello, {user?.user_metadata.full_name?.split(' ')[0] || 'human'}
+                        Hello, {(() => {
+                          const fullName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'human';
+                          const firstWord = fullName.trim().split(/\s+/)[0];
+                          return firstWord.replace(/[^a-zA-Z]/g, '').toUpperCase() || 'HUMAN';
+                        })()}
                       </p>
                       <h2 className="text-5xl sm:text-7xl font-light leading-tight mb-2 text-foreground tracking-tighter">
                         What do you <br />
