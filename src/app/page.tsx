@@ -999,49 +999,51 @@ export default function MobileHome() {
             transition={{ type: 'spring', damping: 25, stiffness: 120 }}
             className="absolute bottom-0 left-0 right-0 z-30 p-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
           >
-            <form onSubmit={handleRunAgent} className="relative group max-w-lg mx-auto space-y-3">
-              <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
-                <MapPin size={18} className="text-accent/60" />
-              </div>
-              <input
-                type="text"
-                value={userInput}
-                onChange={(e) => setUserInput(e.target.value)}
-                disabled={loading || !locationAccessGranted}
-                placeholder={locationAccessGranted ? "Type your request here..." : "Allow location access to continue..."}
-                className="w-full bg-stone-900/30 backdrop-blur-[32px] saturate-[180%] border border-white/[0.08] text-white placeholder-stone-500 rounded-3xl py-5 pl-14 pr-16 shadow-[0_16px_40px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.1)] focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 transition-all disabled:opacity-50 font-sans tracking-tight"
-              />
-              {locationAccessGranted ? (
-                <motion.button
-                  type="submit"
-                  whileTap={{ scale: 0.85 }}
-                  disabled={loading || !userInput.trim()}
-                  className="absolute inset-y-2.5 right-2.5 aspect-square bg-accent hover:bg-accent/90 disabled:bg-stone-800 disabled:text-stone-500 text-stone-950 rounded-2xl flex items-center justify-center transition-all shadow-[0_4px_20px_rgba(202,138,4,0.3),inset_0_1px_0_rgba(255,255,255,0.3)] disabled:shadow-none"
-                >
-                  <Send size={18} className={userInput.trim() ? "ml-0.5" : ""} />
-                </motion.button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const granted = await requestLocationAccess();
-                    if (!granted) {
-                      setError('Location access is required before sending a request. Please allow location permission and try again.');
-                    } else {
-                      setError(null);
-                    }
-                  }}
-                  className="absolute inset-y-2.5 right-2.5 px-4 bg-accent/15 border border-accent/40 text-accent rounded-2xl text-xs font-semibold tracking-wide hover:bg-accent/20 transition-colors"
-                >
-                  Allow
-                </button>
-              )}
+            <div className="max-w-lg mx-auto space-y-3">
+              <form onSubmit={handleRunAgent} className="relative group">
+                <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
+                  <MapPin size={18} className="text-accent/60" />
+                </div>
+                <input
+                  type="text"
+                  value={userInput}
+                  onChange={(e) => setUserInput(e.target.value)}
+                  disabled={loading || !locationAccessGranted}
+                  placeholder={locationAccessGranted ? "Type your request here..." : "Allow location access to continue..."}
+                  className="w-full bg-stone-900/30 backdrop-blur-[32px] saturate-[180%] border border-white/[0.08] text-white placeholder-stone-500 rounded-3xl py-5 pl-14 pr-16 shadow-[0_16px_40px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.1)] focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 transition-all disabled:opacity-50 font-sans tracking-tight"
+                />
+                {locationAccessGranted ? (
+                  <motion.button
+                    type="submit"
+                    whileTap={{ scale: 0.85 }}
+                    disabled={loading || !userInput.trim()}
+                    className="absolute inset-y-2.5 right-2.5 aspect-square bg-accent hover:bg-accent/90 disabled:bg-stone-800 disabled:text-stone-500 text-stone-950 rounded-2xl flex items-center justify-center transition-all shadow-[0_4px_20px_rgba(202,138,4,0.3),inset_0_1px_0_rgba(255,255,255,0.3)] disabled:shadow-none"
+                  >
+                    <Send size={18} className={userInput.trim() ? "ml-0.5" : ""} />
+                  </motion.button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const granted = await requestLocationAccess();
+                      if (!granted) {
+                        setError('Location access is required before sending a request. Please allow location permission and try again.');
+                      } else {
+                        setError(null);
+                      }
+                    }}
+                    className="absolute inset-y-2.5 right-2.5 px-4 bg-accent/15 border border-accent/40 text-accent rounded-2xl text-xs font-semibold tracking-wide hover:bg-accent/20 transition-colors"
+                  >
+                    Allow
+                  </button>
+                )}
+              </form>
               {!locationAccessGranted && (
                 <p className="text-center text-[11px] text-stone-400">
                   Location permission is required to start a request.
                 </p>
               )}
-            </form>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
