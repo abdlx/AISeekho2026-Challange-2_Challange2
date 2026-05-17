@@ -1,0 +1,1 @@
+npx tsx --env-file=.env.local src/scripts/seed-providers.ts

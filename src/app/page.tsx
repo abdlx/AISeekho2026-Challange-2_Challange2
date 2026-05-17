@@ -228,7 +228,7 @@ export default function MobileHome() {
     const supabase = await createClientAsync();
     const { data } = await supabase
       .from('service_bookings')
-      .select('*, service_providers(name, location, rating)')
+      .select('*, service_providers(name, location, rating, hourly_rate_pkr)')
       .order('created_at', { ascending: false });
     setHistory(data || []);
   };
@@ -252,6 +252,7 @@ export default function MobileHome() {
         scheduledTime: item.scheduled_time,
         message: 'This is a past booking retrieved from your history.',
         status: item.status,
+        pricePerHour: item.service_providers?.hourly_rate_pkr || item.total_cost_pkr,
       },
       metrics: {
         latencyMs: 0,
@@ -1178,6 +1179,19 @@ export default function MobileHome() {
 
                           {/* Serrated dashed division line right above the message */}
                           <div className="col-span-2 my-2 border-t border-dashed border-white/20 z-10" />
+
+                          {result.bookingDetails.pricePerHour && (
+                            <div className="col-span-2 mt-1">
+                              <p className="text-stone-500 text-xs mb-1 font-medium">Price per Hour</p>
+                              <p className="text-stone-200 font-semibold">PKR {result.bookingDetails.pricePerHour}/hr</p>
+                            </div>
+                          )}
+                          {result.rankingReasoning && (
+                            <div className="col-span-2 mt-1">
+                              <p className="text-stone-500 text-xs mb-1 font-medium">Selection Reason</p>
+                              <p className="text-stone-300 text-xs leading-relaxed">{result.rankingReasoning}</p>
+                            </div>
+                          )}
 
                           <div className="col-span-2">
                             <p className="text-stone-500 text-xs mb-1 font-medium">Message</p>

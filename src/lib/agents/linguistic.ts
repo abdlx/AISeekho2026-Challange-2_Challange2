@@ -22,8 +22,17 @@ export async function linguisticAgent(userInput: string) {
         locationName: z.string().nullable().describe('Specific location mentioned in text'),
         urgency: z.enum(['low', 'medium', 'high', 'emergency']),
         scheduledTime: z.string().nullable().describe('Requested time/date in ISO format or natural language (e.g. "tomorrow morning", "2026-05-16T09:00", "kal subah 10 baje"). Null if not mentioned.'),
+        priority: z.enum(['cheapest', 'fastest', 'nearest', 'balanced'])
+          .default('balanced')
+          .describe('User preference priority detected from input'),
       }),
-      system: 'You are a Linguistic Specialist. Extract structured data from service requests in Urdu, Roman Urdu, or English. Pay special attention to time phrases (e.g., "kal subah", "abhi", "3 baje") and locations.',
+      system: `You are a Linguistic Specialist. Extract structured data from service requests in Urdu, Roman Urdu, or English. Pay special attention to time phrases (e.g., "kal subah", "abhi", "3 baje") and locations.
+      
+Determine the user's preference priority based on the following triggers:
+- "budget nahi hai", "sasta", "mehenga nahi", "budget mein", "zayada nahi hai", "kam paise", "affordable" -> cheapest
+- "jaldi", "urgent", "abhi", "emergency", "jitna jaldi" -> fastest
+- "paas", "nearest", "qareeb", "nazdik" -> nearest
+- No clear preference -> balanced`,
       prompt: userInput,
     });
 

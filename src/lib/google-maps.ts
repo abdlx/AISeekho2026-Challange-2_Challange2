@@ -35,37 +35,3 @@ export async function getShippingETA(origin: string, destination: string) {
     throw new Error(`Failed to calculate shipping ETA: ${error.message}`);
   }
 }
-
-export async function findNearbySuppliers(location: string, radiusMeters: number, keyword: string = 'supplier') {
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-  if (!apiKey || apiKey === 'your_google_maps_api_key_here') {
-    // Return simulated data if no key
-    return [
-      { name: "Simulated Supplier A", address: "123 Test St", rating: 4.5, lat: 33.7, lng: 73.0 },
-      { name: "Simulated Supplier B", address: "456 Mock Ave", rating: 3.8, lat: 33.68, lng: 73.1 }
-    ];
-  }
-
-  const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${encodeURIComponent(location)}&radius=${radiusMeters}&keyword=${encodeURIComponent(keyword)}&key=${apiKey}`;
-
-  try {
-    const response = await fetch(url);
-    const data = await response.json();
-
-    if (data.status === 'OK' || data.status === 'ZERO_RESULTS') {
-      return (data.results || []).map((place: any) => ({
-        name: place.name,
-        address: place.vicinity,
-        placeId: place.place_id,
-        lat: place.geometry.location.lat,
-        lng: place.geometry.location.lng,
-        rating: place.rating || null
-      }));
-    } else {
-      throw new Error(`Places API Error: ${data.error_message || data.status}`);
-    }
-  } catch (error: any) {
-    console.error("Google Places API error:", error);
-    throw new Error(`Failed to find nearby suppliers: ${error.message}`);
-  }
-}

@@ -9,6 +9,10 @@ export async function transactionAgent(
   scheduledTimeStr: string | null,
   userId: string | null
 ) {
+  if (!providerId || !providerName) {
+    return { success: false, error: 'Provider data incomplete' };
+  }
+
   try {
     const adminClient = createAdminClient();
     

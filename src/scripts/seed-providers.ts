@@ -38,7 +38,19 @@ async function seedProviders() {
     { name: 'Allama Iqbal AC',         service_type: 'AC Technician', location: '31.5400, 74.4100', rating: 4.5, is_available: true },
     { name: 'Lahore Cantonment Fix',   service_type: 'Electrician',   location: '31.5550, 74.3900', rating: 4.7, is_available: true },
     { name: 'Faisal Town Gas Fitter',  service_type: 'Gas Fitter',    location: '31.4700, 74.3150', rating: 4.4, is_available: true },
-  ];
+  ].map(p => {
+    let price = 2000;
+    if (p.service_type.toLowerCase().includes('ac')) {
+      price = Math.floor(Math.random() * (3000-1500+1) + 1500);
+    } else if (p.service_type.toLowerCase().includes('plumb')) {
+      price = Math.floor(Math.random() * (2000-800+1) + 800);
+    } else if (p.service_type.toLowerCase().includes('electric')) {
+      price = Math.floor(Math.random() * (2500-1000+1) + 1000);
+    } else {
+      price = Math.floor(Math.random() * (2000-1000+1) + 1000);
+    }
+    return { ...p, hourly_rate_pkr: price };
+  });
 
   const { data, error } = await adminClient
     .from('service_providers')

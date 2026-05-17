@@ -7,6 +7,13 @@ async function runMigration() {
   const sql = `
     ALTER TABLE agent_traces ADD COLUMN IF NOT EXISTS agent_name TEXT;
     ALTER TABLE agent_traces ADD COLUMN IF NOT EXISTS user_id UUID;
+
+    UPDATE service_providers SET hourly_rate_pkr = CASE
+      WHEN service_type ILIKE '%ac%' THEN floor(random() * (3000-1500+1) + 1500)
+      WHEN service_type ILIKE '%plumb%' THEN floor(random() * (2000-800+1) + 800)
+      WHEN service_type ILIKE '%electric%' THEN floor(random() * (2500-1000+1) + 1000)
+      ELSE floor(random() * (2000-1000+1) + 1000)
+    END WHERE hourly_rate_pkr IS NULL OR hourly_rate_pkr = 2000;
   `;
 
   console.log("Running SQL:\n", sql);
