@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -95,6 +95,7 @@ export default function MobileHome() {
   const [history, setHistory] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('home');
   const [showMenu, setShowMenu] = useState(false);
+  const [resultSourceTab, setResultSourceTab] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [scrolled, setScrolled] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
@@ -177,8 +178,18 @@ export default function MobileHome() {
         bookingConfirmed: true,
       },
     });
+    setResultSourceTab('orders');
     setActiveTab('home');
   };
+
+  const handleCloseResult = useCallback(() => {
+    if (resultSourceTab) {
+      setActiveTab(resultSourceTab);
+      setResultSourceTab(null);
+    }
+    setResult(null);
+    setUserInput('');
+  }, [resultSourceTab]);
 
   useEffect(() => {
     const configureStatusBar = async () => {
@@ -214,8 +225,7 @@ export default function MobileHome() {
         if (showMenu) {
           setShowMenu(false);
         } else if (result) {
-          setResult(null);
-          setUserInput('');
+          handleCloseResult();
         } else if (activeTab !== 'home') {
           setActiveTab('home');
         } else {
@@ -232,7 +242,7 @@ export default function MobileHome() {
         listener.then((l) => l.remove()).catch((err) => console.error('Failed to remove back button listener', err));
       }
     };
-  }, [showMenu, result, activeTab]);
+  }, [showMenu, result, activeTab, resultSourceTab, handleCloseResult]);
 
   const requestLocationAccess = async (): Promise<boolean> => {
     try {
@@ -304,6 +314,7 @@ export default function MobileHome() {
 
     setLoading(true);
     setResult(null);
+    setResultSourceTab(null);
     setTraces([]);
 
     try {
@@ -567,7 +578,7 @@ export default function MobileHome() {
           {(result || activeTab !== 'home') && (
             <motion.button
               whileTap={{ scale: 0.9 }}
-              onClick={() => { if (result) { setResult(null); setUserInput(''); } else { setActiveTab('home'); } }}
+              onClick={() => { if (result) { handleCloseResult(); } else { setActiveTab('home'); } }}
               className="p-2 -ml-2 rounded-full bg-stone-900/30 hover:bg-stone-800/50 backdrop-blur-2xl saturate-[1.5] border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-300"
             >
               <ChevronLeft size={20} className="text-white/90" />
