@@ -199,6 +199,41 @@ export default function MobileHome() {
     void configureStatusBar();
   }, []);
 
+  // Handle Android system back button navigation to prevent app closing abruptly
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    let active = true;
+    let listener: Promise<any> | null = null;
+
+    const setupBackButton = async () => {
+      const { App } = await import('@capacitor/app');
+      if (!active) return;
+
+      listener = App.addListener('backButton', async () => {
+        if (showMenu) {
+          setShowMenu(false);
+        } else if (result) {
+          setResult(null);
+          setUserInput('');
+        } else if (activeTab !== 'home') {
+          setActiveTab('home');
+        } else {
+          await App.exitApp();
+        }
+      });
+    };
+
+    void setupBackButton();
+
+    return () => {
+      active = false;
+      if (listener) {
+        listener.then((l) => l.remove()).catch((err) => console.error('Failed to remove back button listener', err));
+      }
+    };
+  }, [showMenu, result, activeTab]);
+
   const requestLocationAccess = async (): Promise<boolean> => {
     try {
       if (Capacitor.isNativePlatform()) {
