@@ -54,9 +54,13 @@ function AgentTraceCard({ trace, isLast, isActive }: { trace: { step: string; me
 
   return (
     <div className="relative flex gap-4">
-      {/* Connector line */}
+      {/* Connector line (GPU dynamic pipeline) */}
       {!isLast && (
-        <div className="absolute left-[1.375rem] top-12 bottom-0 w-px bg-gradient-to-b from-white/10 to-transparent" />
+        <div className="absolute left-[1.375rem] top-12 bottom-0 w-px bg-white/5 overflow-hidden">
+          {isActive && (
+            <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-transparent via-accent to-transparent animate-pulse-packet will-change-[top]" />
+          )}
+        </div>
       )}
 
       {/* Icon node */}
@@ -67,7 +71,7 @@ function AgentTraceCard({ trace, isLast, isActive }: { trace: { step: string; me
         className={`relative z-10 flex-shrink-0 mt-3 w-11 h-11 rounded-2xl border flex items-center justify-center ${meta.accent} ${meta.color} transition-all duration-500`}
       >
         {isActive && (
-          <span className="absolute -inset-1 rounded-2xl animate-ping opacity-30" style={{ background: 'currentColor' }} />
+          <span className="absolute -inset-1.5 rounded-2xl animate-ping opacity-40 bg-accent/40" />
         )}
         {meta.icon}
       </motion.div>
@@ -123,6 +127,7 @@ export default function MobileHome() {
   const [activeTab, setActiveTab] = useState('home');
   const [showMenu, setShowMenu] = useState(false);
   const [resultSourceTab, setResultSourceTab] = useState<string | null>(null);
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [scrolled, setScrolled] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
@@ -132,6 +137,25 @@ export default function MobileHome() {
   const [fullName, setFullName] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Client-safe haptic vibration engine fallback for mobile environments
+  const triggerHaptic = useCallback(async (type: 'light' | 'medium' | 'success' | 'warning') => {
+    if (!Capacitor.isNativePlatform()) return;
+    try {
+      const { Haptics, ImpactStyle, NotificationType } = await import('@capacitor/haptics');
+      if (type === 'light') {
+        await Haptics.impact({ style: ImpactStyle.Light });
+      } else if (type === 'medium') {
+        await Haptics.impact({ style: ImpactStyle.Medium });
+      } else if (type === 'success') {
+        await Haptics.notification({ type: NotificationType.Success });
+      } else if (type === 'warning') {
+        await Haptics.notification({ type: NotificationType.Warning });
+      }
+    } catch (err) {
+      console.warn('Failed to trigger haptic feedback', err);
+    }
+  }, []);
 
   // Pick up login errors from the auth callback redirect
   useEffect(() => {
@@ -181,6 +205,7 @@ export default function MobileHome() {
   };
 
   const handleViewPastBooking = (item: any) => {
+    void triggerHaptic('light');
     setResult({
       status: 'success',
       insight: `Viewing past booking for ${item.service_type}. This service was previously coordinated by the AISO agents.`,
@@ -210,13 +235,14 @@ export default function MobileHome() {
   };
 
   const handleCloseResult = useCallback(() => {
+    void triggerHaptic('light');
     if (resultSourceTab) {
       setActiveTab(resultSourceTab);
       setResultSourceTab(null);
     }
     setResult(null);
     setUserInput('');
-  }, [resultSourceTab]);
+  }, [resultSourceTab, triggerHaptic]);
 
   useEffect(() => {
     const configureStatusBar = async () => {
@@ -249,6 +275,7 @@ export default function MobileHome() {
       if (!active) return;
 
       listener = App.addListener('backButton', async () => {
+        void triggerHaptic('light');
         if (showMenu) {
           setShowMenu(false);
         } else if (result) {
@@ -335,10 +362,12 @@ export default function MobileHome() {
       const granted = await requestLocationAccess();
       if (!granted) {
         setError('Location access is required before sending a request. Please allow location permission and try again.');
+        void triggerHaptic('warning');
         return;
       }
     }
 
+    void triggerHaptic('medium');
     setLoading(true);
     setResult(null);
     setResultSourceTab(null);
@@ -377,10 +406,16 @@ export default function MobileHome() {
             if (line.startsWith('data: ')) {
               const data = JSON.parse(line.slice(6));
               if (data.type === 'trace') {
+                void triggerHaptic('light');
                 setTraces(prev => [...prev, { step: data.step, message: data.message }]);
               } else if (data.type === 'result') {
                 setResult(data.data);
                 setLoading(false);
+                if (data.data.bookingDetails) {
+                  void triggerHaptic('success');
+                } else {
+                  void triggerHaptic('warning');
+                }
               } else if (data.type === 'error') {
                 throw new Error(data.error);
               }
@@ -391,6 +426,7 @@ export default function MobileHome() {
     } catch (err: any) {
       setError(err.message);
       setLoading(false);
+      void triggerHaptic('warning');
     }
   };
 
@@ -413,13 +449,19 @@ export default function MobileHome() {
   if (!user) {
     return (
       <div className="relative h-[100dvh] w-full overflow-hidden bg-background font-sans text-foreground selection:bg-accent/30 flex flex-col items-center justify-center p-6">
-        {/* Background Image & Blur */}
-        <div
-          className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat transition-transform duration-1000 scale-105"
-          style={{ backgroundImage: 'url("/bg-mountains.png")' }}
-        />
-        <div className="absolute inset-0 z-0 bg-stone-950/40 backdrop-blur-[2px]" />
-        <div className="absolute inset-0 z-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+        {/* Dynamic Cosmic Aurora Background (GPU Accelerated) */}
+        <div className="absolute inset-0 z-0 overflow-hidden bg-[#0c0a09]">
+          {/* Aurora Circle 1 (Accent Golden/Amber) */}
+          <div className="absolute -top-1/4 -left-1/4 w-[85%] aspect-square rounded-full bg-accent/8 blur-[120px] animate-aurora-1 will-change-transform" />
+          {/* Aurora Circle 2 (Indigo/Violet Deep Tech) */}
+          <div className="absolute -bottom-1/4 -right-1/4 w-[80%] aspect-square rounded-full bg-violet-600/7 blur-[120px] animate-aurora-2 will-change-transform" />
+          {/* Aurora Circle 3 (Sky Blue Ambient Flow) */}
+          <div className="absolute top-1/3 left-1/3 w-[65%] aspect-square rounded-full bg-sky-500/6 blur-[120px] animate-aurora-3 will-change-transform" />
+          {/* Fine Noise Texture Overlay */}
+          <div className="absolute inset-0 bg-[radial-gradient(#ffffff03_1px,transparent_1px)] [background-size:16px_16px] opacity-35 mix-blend-overlay" />
+        </div>
+        <div className="absolute inset-0 z-0 bg-stone-950/45 backdrop-blur-[2px]" />
+        <div className="absolute inset-0 z-0 bg-gradient-to-t from-background via-background/55 to-transparent" />
 
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
@@ -578,13 +620,19 @@ export default function MobileHome() {
 
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-background font-sans text-foreground selection:bg-accent/30">
-      {/* Background Image & Blur */}
-      <div
-        className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat transition-transform duration-1000 scale-105"
-        style={{ backgroundImage: 'url("/bg-mountains.png")' }}
-      />
-      <div className="absolute inset-0 z-0 bg-stone-950/40 backdrop-blur-[2px] transition-all duration-700" />
-      <div className="absolute inset-0 z-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+      {/* Dynamic Cosmic Aurora Background (GPU Accelerated) */}
+      <div className="absolute inset-0 z-0 overflow-hidden bg-[#0c0a09]">
+        {/* Aurora Circle 1 (Accent Golden/Amber) */}
+        <div className="absolute -top-1/4 -left-1/4 w-[85%] aspect-square rounded-full bg-accent/8 blur-[120px] animate-aurora-1 will-change-transform" />
+        {/* Aurora Circle 2 (Indigo/Violet Deep Tech) */}
+        <div className="absolute -bottom-1/4 -right-1/4 w-[80%] aspect-square rounded-full bg-violet-600/7 blur-[120px] animate-aurora-2 will-change-transform" />
+        {/* Aurora Circle 3 (Sky Blue Ambient Flow) */}
+        <div className="absolute top-1/3 left-1/3 w-[65%] aspect-square rounded-full bg-sky-500/6 blur-[120px] animate-aurora-3 will-change-transform" />
+        {/* Fine Noise Texture Overlay */}
+        <div className="absolute inset-0 bg-[radial-gradient(#ffffff03_1px,transparent_1px)] [background-size:16px_16px] opacity-35 mix-blend-overlay" />
+      </div>
+      <div className="absolute inset-0 z-0 bg-stone-950/45 backdrop-blur-[2px] transition-all duration-700" />
+      <div className="absolute inset-0 z-0 bg-gradient-to-t from-background via-background/55 to-transparent" />
 
       {/* Header */}
       <header className="absolute top-0 left-0 right-0 z-20 pointer-events-none">
@@ -657,27 +705,99 @@ export default function MobileHome() {
               className="flex flex-col space-y-4 pb-20"
             >
               {/* Header title now handles "Past Orders" */}
-              {history.length > 0 ? history.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => handleViewPastBooking(item)}
-                  className="w-full text-left bg-white/5 backdrop-blur-3xl border border-white/10 p-5 rounded-3xl shadow-xl flex items-center justify-between hover:bg-white/10 transition-all active:scale-[0.98] group"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-accent/10 rounded-2xl group-hover:scale-110 transition-transform">
-                      <Package size={24} className="text-accent" />
-                    </div>
-                    <div>
-                      <p className="text-stone-200 font-medium">{item.service_providers?.name || 'Technician'}</p>
-                      <p className="text-xs text-stone-500">{new Date(item.created_at).toLocaleDateString()}</p>
-                    </div>
+              {/* Header title now handles "Past Orders" */}
+              {history.length > 0 ? history.map((item) => {
+                const isExpanded = expandedOrderId === item.id;
+                return (
+                  <div 
+                    key={item.id}
+                    className="w-full bg-white/5 backdrop-blur-3xl border border-white/10 rounded-3xl shadow-xl overflow-hidden transition-all duration-300"
+                  >
+                    {/* Header bar click toggle */}
+                    <button
+                      onClick={() => {
+                        void triggerHaptic('light');
+                        setExpandedOrderId(isExpanded ? null : item.id);
+                      }}
+                      className="w-full text-left p-5 flex items-center justify-between hover:bg-white/5 transition-all group cursor-pointer"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="p-3 bg-accent/10 rounded-2xl group-hover:scale-105 transition-transform">
+                          <Package size={22} className="text-accent" />
+                        </div>
+                        <div>
+                          <p className="text-stone-200 font-semibold text-sm">{item.service_providers?.name || 'Technician'}</p>
+                          <p className="text-[10px] text-stone-500 font-medium">{new Date(item.created_at).toLocaleDateString()} at {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <p className="text-accent font-bold text-sm">PKR {item.total_cost_pkr}</p>
+                          <p className="text-[9px] uppercase tracking-widest text-emerald-400 font-semibold">{item.status}</p>
+                        </div>
+                        <ChevronLeft 
+                          size={16} 
+                          className={`text-stone-600 transition-transform duration-300 ${isExpanded ? '-rotate-90 text-accent' : 'rotate-180'}`} 
+                        />
+                      </div>
+                    </button>
+
+                    {/* Sliding Details Accordion */}
+                    <AnimatePresence initial={false}>
+                      {isExpanded && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
+                          className="overflow-hidden border-t border-white/5 bg-white/[0.01]"
+                        >
+                          <div className="p-5 space-y-4 text-xs text-stone-300">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <p className="text-stone-500 text-[10px] uppercase tracking-wider mb-0.5 font-bold">Booking Type</p>
+                                <p className="text-stone-200 font-medium">{item.service_type}</p>
+                              </div>
+                              <div>
+                                <p className="text-stone-500 text-[10px] uppercase tracking-wider mb-0.5 font-bold">Confirmation Code</p>
+                                <p className="text-stone-200 font-mono tracking-wider font-semibold">{item.id.slice(0, 8).toUpperCase()}</p>
+                              </div>
+                              {item.scheduled_time && (
+                                <div className="col-span-2">
+                                  <p className="text-stone-500 text-[10px] uppercase tracking-wider mb-0.5 font-bold">Scheduled Time</p>
+                                  <p className="text-stone-200">
+                                    {item.scheduled_time === 'Now'
+                                      ? 'Immediate Arrival'
+                                      : isNaN(new Date(item.scheduled_time).getTime())
+                                        ? item.scheduled_time
+                                        : new Date(item.scheduled_time).toLocaleDateString() + ' at ' + new Date(item.scheduled_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                    }
+                                  </p>
+                                </div>
+                              )}
+                              <div className="col-span-2">
+                                <p className="text-stone-500 text-[10px] uppercase tracking-wider mb-0.5 font-bold">Customer Location</p>
+                                <p className="text-stone-200 leading-relaxed truncate">{item.customer_location}</p>
+                              </div>
+                            </div>
+
+                            {/* Full View navigation link */}
+                            <div className="pt-2 flex justify-end">
+                              <button
+                                onClick={() => handleViewPastBooking(item)}
+                                className="flex items-center gap-2 bg-accent hover:bg-accent/90 text-stone-950 font-bold px-4 py-2.5 rounded-2xl transition-all active:scale-95 cursor-pointer shadow-lg shadow-accent/10"
+                              >
+                                <span>Open Full Trace & Map</span>
+                                <ChevronLeft size={14} className="rotate-180 text-stone-950" />
+                              </button>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
-                  <div className="text-right">
-                    <p className="text-accent font-bold">PKR {item.total_cost_pkr}</p>
-                    <p className="text-[10px] uppercase tracking-wider text-emerald-400">{item.status}</p>
-                  </div>
-                </button>
-              )) : (
+                );
+              }) : (
                 <div className="text-center py-20 text-stone-500">
                   <Clock size={40} className="mx-auto mb-4 opacity-20" />
                   <p>No past orders found.</p>
@@ -757,19 +877,19 @@ export default function MobileHome() {
 
               {/* Category Grid */}
               <motion.div variants={STAGGER_ITEM} className="grid grid-cols-2 gap-4 mb-10">
-                <CategoryCard icon={<Zap className="w-6 h-6" />} label="Electrician" color="bg-amber-500/10 text-amber-400" onClick={() => { setUserInput("I need an electrician near me"); setActiveTab('home'); }} />
-                <CategoryCard icon={<MapPin className="w-6 h-6" />} label="Plumber" color="bg-blue-500/10 text-blue-400" onClick={() => { setUserInput("Find a plumber in my area"); setActiveTab('home'); }} />
-                <CategoryCard icon={<Cpu className="w-6 h-6" />} label="AC Repair" color="bg-sky-500/10 text-sky-400" onClick={() => { setUserInput("Need AC technician for G-13"); setActiveTab('home'); }} />
-                <CategoryCard icon={<Activity className="w-6 h-6" />} label="Gas Fitter" color="bg-red-500/10 text-red-400" onClick={() => { setUserInput("Gas fitter required for kitchen stove"); setActiveTab('home'); }} />
+                <CategoryCard icon={<Zap className="w-6 h-6" />} label="Electrician" color="bg-amber-500/10 text-amber-400" onClick={() => { void triggerHaptic('light'); setUserInput("I need an electrician near me"); setActiveTab('home'); }} />
+                <CategoryCard icon={<MapPin className="w-6 h-6" />} label="Plumber" color="bg-blue-500/10 text-blue-400" onClick={() => { void triggerHaptic('light'); setUserInput("Find a plumber in my area"); setActiveTab('home'); }} />
+                <CategoryCard icon={<Cpu className="w-6 h-6" />} label="AC Repair" color="bg-sky-500/10 text-sky-400" onClick={() => { void triggerHaptic('light'); setUserInput("Need AC technician for G-13"); setActiveTab('home'); }} />
+                <CategoryCard icon={<Activity className="w-6 h-6" />} label="Gas Fitter" color="bg-red-500/10 text-red-400" onClick={() => { void triggerHaptic('light'); setUserInput("Gas fitter required for kitchen stove"); setActiveTab('home'); }} />
               </motion.div>
 
               {/* Discovery Prompts */}
               <motion.div variants={STAGGER_ITEM} className="space-y-4 mb-10">
                 <h3 className="text-[10px] uppercase tracking-[0.3em] text-stone-500 font-bold px-1">Try Asking</h3>
                 <div className="flex flex-col gap-3">
-                  <PromptButton text="“Kal subah plumber bhej dein”" onClick={() => { setUserInput("Kal subah plumber bhej dein"); setActiveTab('home'); }} />
-                  <PromptButton text="“AC service near DHA Phase 6”" onClick={() => { setUserInput("AC service near DHA Phase 6"); setActiveTab('home'); }} />
-                  <PromptButton text="“Emergency electrician needed now”" onClick={() => { setUserInput("Emergency electrician needed now"); setActiveTab('home'); }} />
+                  <PromptButton text="“Kal subah plumber bhej dein”" onClick={() => { void triggerHaptic('light'); setUserInput("Kal subah plumber bhej dein"); setActiveTab('home'); }} />
+                  <PromptButton text="“AC service near DHA Phase 6”" onClick={() => { void triggerHaptic('light'); setUserInput("AC service near DHA Phase 6"); setActiveTab('home'); }} />
+                  <PromptButton text="“Emergency electrician needed now”" onClick={() => { void triggerHaptic('light'); setUserInput("Emergency electrician needed now"); setActiveTab('home'); }} />
                 </div>
               </motion.div>
 
@@ -961,40 +1081,63 @@ export default function MobileHome() {
                       )}
                     </motion.div>
 
-                    {/* Booking Receipt Card */}
+                    {/* Booking Receipt Card (Tactile Serrated Ticket Layout) */}
                     {result.bookingDetails && (
-                      <motion.div variants={STAGGER_ITEM} className="bg-white/5 backdrop-blur-3xl border border-white/10 p-7 rounded-[2rem] shadow-2xl relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 p-4 opacity-10">
+                      <motion.div variants={STAGGER_ITEM} className="ticket-card bg-white/5 backdrop-blur-3xl border border-white/10 p-7 pb-8 rounded-[2rem] shadow-2xl relative overflow-hidden group">
+                        {/* Half-circle ticket cuts */}
+                        <div className="absolute left-0 right-0 top-[55%] -translate-y-1/2 flex justify-between pointer-events-none z-20">
+                          <div className="w-3 h-6 bg-[#0c0a09] -ml-1.5 rounded-r-full border-y border-r border-white/10 shadow-[inset_1px_0_3px_rgba(0,0,0,0.6)]" />
+                          <div className="w-3 h-6 bg-[#0c0a09] -mr-1.5 rounded-l-full border-y border-l border-white/10 shadow-[inset_-1px_0_3px_rgba(0,0,0,0.6)]" />
+                        </div>
+                        <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
                           <ReceiptText size={80} />
                         </div>
                         <h3 className="text-[10px] uppercase tracking-[0.2em] text-accent font-bold mb-4 flex items-center gap-2">
                           <ReceiptText size={14} /> Booking Confirmed
                         </h3>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div className="grid grid-cols-2 gap-4 text-sm relative z-10">
                           <div>
-                            <p className="text-stone-500 text-xs mb-1">Confirmation Code</p>
-                            <p className="text-stone-200 font-mono">{result.bookingDetails.confirmationCode}</p>
+                            <p className="text-stone-500 text-xs mb-1 font-medium">Confirmation Code</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-stone-200 font-mono font-bold tracking-wider">{result.bookingDetails.confirmationCode}</p>
+                              <button 
+                                onClick={async (e) => {
+                                  e.preventDefault();
+                                  void triggerHaptic('light');
+                                  await navigator.clipboard.writeText(result.bookingDetails.confirmationCode);
+                                }}
+                                className="text-[9px] uppercase tracking-wider bg-white/5 border border-white/10 text-stone-400 hover:text-accent hover:border-accent/40 px-2 py-0.5 rounded-md transition-all active:scale-95 cursor-pointer"
+                              >
+                                Copy
+                              </button>
+                            </div>
                           </div>
                           <div>
-                            <p className="text-stone-500 text-xs mb-1">Provider</p>
-                            <p className="text-stone-200">{result.bookingDetails.provider}</p>
+                            <p className="text-stone-500 text-xs mb-1 font-medium">Provider</p>
+                            <p className="text-stone-200 font-semibold">{result.bookingDetails.providerName || result.bookingDetails.provider}</p>
                           </div>
-                          {result.scheduledTime && (
+                          {(result.scheduledTime || result.bookingDetails.scheduledTime) && (
                             <div className="col-span-2 mt-1">
-                              <p className="text-stone-500 text-xs mb-1">Scheduled Time</p>
+                              <p className="text-stone-500 text-xs mb-1 font-medium">Scheduled Time</p>
                               <p className="text-stone-200">
-                                {result.scheduledTime === 'Now'
-                                  ? 'Immediate Arrival'
-                                  : isNaN(new Date(result.scheduledTime).getTime())
-                                    ? result.scheduledTime
-                                    : new Date(result.scheduledTime).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })
-                                }
+                                {(() => {
+                                  const timeVal = result.scheduledTime || result.bookingDetails.scheduledTime;
+                                  return timeVal === 'Now'
+                                    ? 'Immediate Arrival'
+                                    : isNaN(new Date(timeVal).getTime())
+                                      ? timeVal
+                                      : new Date(timeVal).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' });
+                                })()}
                               </p>
                             </div>
                           )}
-                          <div className="col-span-2 pt-2 border-t border-white/5">
-                            <p className="text-stone-500 text-xs mb-1">Message</p>
-                            <p className="text-stone-300 italic">{result.bookingDetails.message}</p>
+                          
+                          {/* Serrated dashed division line right above the message */}
+                          <div className="col-span-2 my-2 border-t border-dashed border-white/20 z-10" />
+                          
+                          <div className="col-span-2">
+                            <p className="text-stone-500 text-xs mb-1 font-medium">Message</p>
+                            <p className="text-stone-300 italic text-xs leading-relaxed">"{result.bookingDetails.message}"</p>
                           </div>
                         </div>
                       </motion.div>
@@ -1154,10 +1297,10 @@ export default function MobileHome() {
               </div>
 
               <div className="flex-1 flex flex-col gap-2">
-                <MenuItem icon={<Home className="w-5 h-5" />} label="Home Chat" active={activeTab === 'home'} onClick={() => { setActiveTab('home'); setShowMenu(false); }} />
-                <MenuItem icon={<Package className="w-5 h-5" />} label="Booking History" active={activeTab === 'orders'} onClick={() => { setActiveTab('orders'); setShowMenu(false); }} />
-                <MenuItem icon={<BellRing className="w-5 h-5" />} label="Notifications" active={activeTab === 'alerts'} onClick={() => { setActiveTab('alerts'); setShowMenu(false); }} />
-                <MenuItem icon={<Settings className="w-5 h-5" />} label="Discovery & Settings" active={activeTab === 'settings'} onClick={() => { setActiveTab('settings'); setShowMenu(false); }} />
+                <MenuItem icon={<Home className="w-5 h-5" />} label="Home Chat" active={activeTab === 'home'} onClick={() => { void triggerHaptic('light'); setActiveTab('home'); setShowMenu(false); }} />
+                <MenuItem icon={<Package className="w-5 h-5" />} label="Booking History" active={activeTab === 'orders'} onClick={() => { void triggerHaptic('light'); setActiveTab('orders'); setShowMenu(false); }} />
+                <MenuItem icon={<BellRing className="w-5 h-5" />} label="Notifications" active={activeTab === 'alerts'} onClick={() => { void triggerHaptic('light'); setActiveTab('alerts'); setShowMenu(false); }} />
+                <MenuItem icon={<Settings className="w-5 h-5" />} label="Discovery & Settings" active={activeTab === 'settings'} onClick={() => { void triggerHaptic('light'); setActiveTab('settings'); setShowMenu(false); }} />
               </div>
 
               <div className="mt-auto pt-8 border-t border-white/5 flex flex-col gap-4">

@@ -45,5 +45,98 @@ body {
   background: transparent;
 }
 
+/* Premium GPU Morphing Cosmic Auroras */
+@keyframes morph-aurora-1 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+  33% {
+    transform: translate(15%, -15%) scale(1.2) rotate(120deg);
+  }
+  66% {
+    transform: translate(-10%, 10%) scale(0.85) rotate(240deg);
+  }
+}
+
+@keyframes morph-aurora-2 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+  33% {
+    transform: translate(-15%, 15%) scale(0.8) rotate(-120deg);
+  }
+  66% {
+    transform: translate(12%, -10%) scale(1.15) rotate(-240deg);
+  }
+}
+
+@keyframes morph-aurora-3 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+  50% {
+    transform: translate(10%, 10%) scale(1.1) rotate(180deg);
+  }
+}
+
+@keyframes pulse-packet {
+  0% {
+    top: -50%;
+  }
+  100% {
+    top: 150%;
+  }
+}
+
+@layer utilities {
+  .animate-aurora-1 {
+    animation: morph-aurora-1 25s ease-in-out infinite;
+  }
+  .animate-aurora-2 {
+    animation: morph-aurora-2 30s ease-in-out infinite;
+  }
+  .animate-aurora-3 {
+    animation: morph-aurora-3 20s ease-in-out infinite;
+  }
+  .animate-pulse-packet {
+    animation: pulse-packet 2s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
+  }
+}
+
+/* Premium Cinema Ticket Cutouts */
+.ticket-card {
+  position: relative;
+}
+
+.ticket-cut-left::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #1c1917; /* Matches background */
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset -4px 0 8px rgba(0, 0, 0, 0.5);
+  z-index: 10;
+}
+
+.ticket-cut-right::after {
+  content: '';
+  position: absolute;
+  right: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #1c1917; /* Matches background */
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 4px 0 8px rgba(0, 0, 0, 0.5);
+  z-index: 10;
+}
+
 
 
