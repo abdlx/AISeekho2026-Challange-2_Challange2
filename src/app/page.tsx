@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -82,10 +82,10 @@ function AgentTraceCard({ trace, isLast, isActive }: { trace: { step: string; me
         animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
         transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
         className={`flex-1 mb-3 relative p-4 rounded-2xl border backdrop-blur-3xl ${isError
-            ? 'bg-red-500/5 border-red-500/20'
-            : isSuccess
-              ? 'bg-emerald-500/5 border-emerald-500/20'
-              : 'bg-white/[0.04] border-white/8 hover:bg-white/[0.06]'
+          ? 'bg-red-500/5 border-red-500/20'
+          : isSuccess
+            ? 'bg-emerald-500/5 border-emerald-500/20'
+            : 'bg-white/[0.04] border-white/8 hover:bg-white/[0.06]'
           } transition-all duration-300 shadow-[0_4px_24px_rgba(0,0,0,0.3)]`}
       >
         {/* Top accent bar */}
@@ -138,22 +138,50 @@ export default function MobileHome() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  // Flagship Haptic Engine setup with pre-cached instances
+  const hapticsRef = useRef<any>(null);
+  
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      import('@capacitor/haptics').then((module) => {
+        hapticsRef.current = module.Haptics;
+      }).catch(err => {
+        console.warn('Failed to initialize Capacitor Haptics module', err);
+      });
+    }
+  }, []);
+
   // Client-safe haptic vibration engine fallback for mobile environments
-  const triggerHaptic = useCallback(async (type: 'light' | 'medium' | 'success' | 'warning') => {
-    if (!Capacitor.isNativePlatform()) return;
+  const triggerHaptic = useCallback((type: 'light' | 'medium' | 'success' | 'warning') => {
+    const Haptics = hapticsRef.current;
+    if (!Haptics) return;
+    
     try {
-      const { Haptics, ImpactStyle, NotificationType } = await import('@capacitor/haptics');
       if (type === 'light') {
-        await Haptics.impact({ style: ImpactStyle.Light });
+        // Ultra-crisp flagship mechanical click (9ms duration is highly crisp on flagship LRAs)
+        void Haptics.vibrate({ duration: 9 });
       } else if (type === 'medium') {
-        await Haptics.impact({ style: ImpactStyle.Medium });
+        // Crisp solid click (18ms)
+        void Haptics.vibrate({ duration: 18 });
       } else if (type === 'success') {
-        await Haptics.notification({ type: NotificationType.Success });
+        // High-end rising double confirmation pattern
+        void Haptics.vibrate({ duration: 12 });
+        setTimeout(() => {
+          if (hapticsRef.current) {
+            void hapticsRef.current.vibrate({ duration: 25 });
+          }
+        }, 80);
       } else if (type === 'warning') {
-        await Haptics.notification({ type: NotificationType.Warning });
+        // Warning double pulse
+        void Haptics.vibrate({ duration: 30 });
+        setTimeout(() => {
+          if (hapticsRef.current) {
+            void hapticsRef.current.vibrate({ duration: 15 });
+          }
+        }, 100);
       }
     } catch (err) {
-      console.warn('Failed to trigger haptic feedback', err);
+      console.warn('Failed to trigger native haptic click', err);
     }
   }, []);
 
@@ -449,14 +477,23 @@ export default function MobileHome() {
   if (!user) {
     return (
       <div className="relative h-[100dvh] w-full overflow-hidden spot-gradient-bg font-sans text-foreground selection:bg-accent/30 flex flex-col items-center justify-center p-6">
-        {/* Dynamic Cosmic Aurora Background (GPU Accelerated) */}
+        {/* Dynamic Cosmic Aurora Background (GPU Accelerated with zero-blur GPU radial gradients) */}
         <div className="absolute inset-0 z-0 overflow-hidden bg-transparent">
           {/* Aurora Circle 1 (Accent Golden/Amber) */}
-          <div className="absolute -top-1/4 -left-1/4 w-[85%] aspect-square rounded-full bg-accent/8 blur-[120px] animate-aurora-1 will-change-transform" />
+          <div 
+            className="absolute -top-1/4 -left-1/4 w-[85%] aspect-square rounded-full animate-aurora-1 will-change-transform" 
+            style={{ background: 'radial-gradient(circle, rgba(202, 138, 4, 0.08) 0%, transparent 70%)' }}
+          />
           {/* Aurora Circle 2 (Indigo/Violet Deep Tech) */}
-          <div className="absolute -bottom-1/4 -right-1/4 w-[80%] aspect-square rounded-full bg-violet-600/7 blur-[120px] animate-aurora-2 will-change-transform" />
+          <div 
+            className="absolute -bottom-1/4 -right-1/4 w-[80%] aspect-square rounded-full animate-aurora-2 will-change-transform" 
+            style={{ background: 'radial-gradient(circle, rgba(124, 58, 237, 0.07) 0%, transparent 70%)' }}
+          />
           {/* Aurora Circle 3 (Sky Blue Ambient Flow) */}
-          <div className="absolute top-1/3 left-1/3 w-[65%] aspect-square rounded-full bg-sky-500/6 blur-[120px] animate-aurora-3 will-change-transform" />
+          <div 
+            className="absolute top-1/3 left-1/3 w-[65%] aspect-square rounded-full animate-aurora-3 will-change-transform" 
+            style={{ background: 'radial-gradient(circle, rgba(14, 165, 233, 0.06) 0%, transparent 70%)' }}
+          />
           {/* Fine Noise Texture Overlay */}
           <div className="absolute inset-0 bg-[radial-gradient(#ffffff03_1px,transparent_1px)] [background-size:16px_16px] opacity-35 mix-blend-overlay" />
         </div>
@@ -571,11 +608,10 @@ export default function MobileHome() {
             </div>
 
             {loginError && (
-              <div className={`p-4 border rounded-2xl text-xs break-all leading-relaxed ${
-                loginError.includes('successfully') 
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
+              <div className={`p-4 border rounded-2xl text-xs break-all leading-relaxed ${loginError.includes('successfully')
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
                   : 'bg-red-500/10 border-red-500/30 text-red-400'
-              }`}>
+                }`}>
                 {loginError}
               </div>
             )}
@@ -619,14 +655,23 @@ export default function MobileHome() {
 
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden spot-gradient-bg font-sans text-foreground selection:bg-accent/30">
-      {/* Dynamic Cosmic Aurora Background (GPU Accelerated) */}
+      {/* Dynamic Cosmic Aurora Background (GPU Accelerated with zero-blur GPU radial gradients) */}
       <div className="absolute inset-0 z-0 overflow-hidden bg-transparent">
         {/* Aurora Circle 1 (Accent Golden/Amber) */}
-        <div className="absolute -top-1/4 -left-1/4 w-[85%] aspect-square rounded-full bg-accent/8 blur-[120px] animate-aurora-1 will-change-transform" />
+        <div 
+          className="absolute -top-1/4 -left-1/4 w-[85%] aspect-square rounded-full animate-aurora-1 will-change-transform" 
+          style={{ background: 'radial-gradient(circle, rgba(202, 138, 4, 0.08) 0%, transparent 70%)' }}
+        />
         {/* Aurora Circle 2 (Indigo/Violet Deep Tech) */}
-        <div className="absolute -bottom-1/4 -right-1/4 w-[80%] aspect-square rounded-full bg-violet-600/7 blur-[120px] animate-aurora-2 will-change-transform" />
+        <div 
+          className="absolute -bottom-1/4 -right-1/4 w-[80%] aspect-square rounded-full animate-aurora-2 will-change-transform" 
+          style={{ background: 'radial-gradient(circle, rgba(124, 58, 237, 0.07) 0%, transparent 70%)' }}
+        />
         {/* Aurora Circle 3 (Sky Blue Ambient Flow) */}
-        <div className="absolute top-1/3 left-1/3 w-[65%] aspect-square rounded-full bg-sky-500/6 blur-[120px] animate-aurora-3 will-change-transform" />
+        <div 
+          className="absolute top-1/3 left-1/3 w-[65%] aspect-square rounded-full animate-aurora-3 will-change-transform" 
+          style={{ background: 'radial-gradient(circle, rgba(14, 165, 233, 0.06) 0%, transparent 70%)' }}
+        />
         {/* Fine Noise Texture Overlay */}
         <div className="absolute inset-0 bg-[radial-gradient(#ffffff03_1px,transparent_1px)] [background-size:16px_16px] opacity-35 mix-blend-overlay" />
       </div>
@@ -635,7 +680,7 @@ export default function MobileHome() {
       {/* Header */}
       <header className="absolute top-0 left-0 right-0 z-20 pointer-events-none">
         {/* Premium Liquid Glass Background */}
-        <div 
+        <div
           className={`absolute inset-0 transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] ${scrolled ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}
         >
           {/* Main Translucent Blur Layer */}
@@ -645,48 +690,48 @@ export default function MobileHome() {
           {/* Dynamic Top Edge Highlight */}
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/[0.15] to-transparent opacity-50" />
         </div>
-        
+
         <div className="relative flex items-center justify-between px-6 pt-[calc(env(safe-area-inset-top)+1rem)] pb-8 pointer-events-auto">
           <div className="flex items-center gap-3">
-          {(result || activeTab !== 'home') && (
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={() => { if (result) { handleCloseResult(); } else { setActiveTab('home'); } }}
-              className="p-2 -ml-2 rounded-full bg-stone-900/30 hover:bg-stone-800/50 backdrop-blur-2xl saturate-[1.5] border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-300"
-            >
-              <ChevronLeft size={20} className="text-white/90" />
-            </motion.button>
-          )}
-          <h1 className="text-xl font-serif tracking-tight text-white/90 drop-shadow-[0_2px_10px_rgba(255,255,255,0.1)]">
-            {result ? 'Booking Details' : activeTab === 'orders' ? 'Past Orders' : activeTab === 'alerts' ? 'Notifications' : activeTab === 'settings' ? 'Discovery & Settings' : 'AISO'}
-          </h1>
-        </div>
-        <div className="flex items-center gap-2">
-          {user && activeTab === 'home' && !result && (
-            <div className="relative w-10 h-10 rounded-full border border-white/[0.15] p-0.5 overflow-hidden backdrop-blur-2xl bg-stone-900/30 shadow-[0_8px_32px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.1)]">
-              <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent mix-blend-overlay" />
-              <img
-                src={user.user_metadata.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`}
-                className="w-full h-full rounded-full object-cover relative z-10"
-                alt="profile"
-              />
-            </div>
-          )}
-          {!result && activeTab === 'home' && (
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={() => setShowMenu(true)}
-              className="p-2.5 rounded-full bg-stone-900/30 hover:bg-stone-800/50 backdrop-blur-2xl saturate-[1.5] border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-300 group"
-            >
-              <Menu size={20} className="text-white/80 group-hover:text-white transition-colors" />
-            </motion.button>
-          )}
-        </div>
+            {(result || activeTab !== 'home') && (
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={() => { if (result) { handleCloseResult(); } else { setActiveTab('home'); } }}
+                className="p-2 -ml-2 rounded-full bg-stone-900/30 hover:bg-stone-800/50 backdrop-blur-2xl saturate-[1.5] border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-300"
+              >
+                <ChevronLeft size={20} className="text-white/90" />
+              </motion.button>
+            )}
+            <h1 className="text-xl font-serif tracking-tight text-white/90 drop-shadow-[0_2px_10px_rgba(255,255,255,0.1)]">
+              {result ? 'Booking Details' : activeTab === 'orders' ? 'Past Orders' : activeTab === 'alerts' ? 'Notifications' : activeTab === 'settings' ? 'Discovery & Settings' : 'AISO'}
+            </h1>
+          </div>
+          <div className="flex items-center gap-2">
+            {user && activeTab === 'home' && !result && (
+              <div className="relative w-10 h-10 rounded-full border border-white/[0.15] p-0.5 overflow-hidden backdrop-blur-2xl bg-stone-900/30 shadow-[0_8px_32px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.1)]">
+                <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent mix-blend-overlay" />
+                <img
+                  src={user.user_metadata.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`}
+                  className="w-full h-full rounded-full object-cover relative z-10"
+                  alt="profile"
+                />
+              </div>
+            )}
+            {!result && activeTab === 'home' && (
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setShowMenu(true)}
+                className="p-2.5 rounded-full bg-stone-900/30 hover:bg-stone-800/50 backdrop-blur-2xl saturate-[1.5] border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-300 group"
+              >
+                <Menu size={20} className="text-white/80 group-hover:text-white transition-colors" />
+              </motion.button>
+            )}
+          </div>
         </div>
       </header>
 
       {/* Main Content Area */}
-      <main 
+      <main
         onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 20)}
         className="relative z-10 flex flex-col h-full pt-32 pb-40 px-6 overflow-y-auto custom-scrollbar"
       >
@@ -707,7 +752,7 @@ export default function MobileHome() {
               {history.length > 0 ? history.map((item) => {
                 const isExpanded = expandedOrderId === item.id;
                 return (
-                  <div 
+                  <div
                     key={item.id}
                     className="w-full bg-white/5 backdrop-blur-3xl border border-white/10 rounded-3xl shadow-xl overflow-hidden transition-all duration-300"
                   >
@@ -733,9 +778,9 @@ export default function MobileHome() {
                           <p className="text-accent font-bold text-sm">PKR {item.total_cost_pkr}</p>
                           <p className="text-[9px] uppercase tracking-widest text-emerald-400 font-semibold">{item.status}</p>
                         </div>
-                        <ChevronLeft 
-                          size={16} 
-                          className={`text-stone-600 transition-transform duration-300 ${isExpanded ? '-rotate-90 text-accent' : 'rotate-180'}`} 
+                        <ChevronLeft
+                          size={16}
+                          className={`text-stone-600 transition-transform duration-300 ${isExpanded ? '-rotate-90 text-accent' : 'rotate-180'}`}
                         />
                       </div>
                     </button>
@@ -1098,7 +1143,7 @@ export default function MobileHome() {
                             <p className="text-stone-500 text-xs mb-1 font-medium">Confirmation Code</p>
                             <div className="flex items-center gap-2">
                               <p className="text-stone-200 font-mono font-bold tracking-wider">{result.bookingDetails.confirmationCode}</p>
-                              <button 
+                              <button
                                 onClick={async (e) => {
                                   e.preventDefault();
                                   void triggerHaptic('light');
@@ -1129,10 +1174,10 @@ export default function MobileHome() {
                               </p>
                             </div>
                           )}
-                          
+
                           {/* Serrated dashed division line right above the message */}
                           <div className="col-span-2 my-2 border-t border-dashed border-white/20 z-10" />
-                          
+
                           <div className="col-span-2">
                             <p className="text-stone-500 text-xs mb-1 font-medium">Message</p>
                             <p className="text-stone-300 italic text-xs leading-relaxed">"{result.bookingDetails.message}"</p>
