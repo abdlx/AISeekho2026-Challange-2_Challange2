@@ -172,6 +172,48 @@ const AgentTraceCard = memo(function AgentTraceCard({
   );
 });
 
+/**
+ * Align and merge rolling speech transcripts smoothly to prevent word duplication,
+ * abrupt layout jumps, or destructive overwriting of previously confirmed context.
+ */
+const mergeTranscripts = (prev: string, incoming: string) => {
+  const p = prev.trim();
+  const inc = incoming.trim();
+  if (!p) return inc;
+  if (!inc) return p;
+
+  // 1. Perfect continuation check
+  if (inc.toLowerCase().startsWith(p.toLowerCase())) {
+    return inc;
+  }
+
+  // 2. Word-by-word alignment for suffix-to-prefix overlap
+  const prevWords = p.split(/\s+/);
+  const incWords = inc.split(/\s+/);
+
+  let overlapCount = 0;
+  const maxOverlap = Math.min(prevWords.length, incWords.length);
+
+  for (let i = 1; i <= maxOverlap; i++) {
+    const suffix = prevWords.slice(-i).join(' ').toLowerCase();
+    const prefix = incWords.slice(0, i).join(' ').toLowerCase();
+    if (suffix === prefix) {
+      overlapCount = i;
+    }
+  }
+
+  if (overlapCount > 0) {
+    return [...prevWords, ...incWords.slice(overlapCount)].join(' ');
+  }
+
+  // 3. Fallback to incoming if it contains more text, otherwise preserve confirmed prev
+  if (inc.length >= p.length) {
+    return inc;
+  }
+
+  return p;
+};
+
 export default function MobileHome() {
   const isNativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
   const [loading, setLoading] = useState(false);
@@ -212,6 +254,7 @@ export default function MobileHome() {
   const [isVoiceMode, setIsVoiceMode] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState('');
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
 
   // Agent Trace drawer states
@@ -313,6 +356,7 @@ export default function MobileHome() {
           type: mediaRecorderRef.current?.mimeType || 'audio/webm' 
         });
         if (fullBlob.size > 1000) {
+          setIsTranscribing(true);
           try {
             const base64Audio = await convertBlobToBase64(fullBlob);
             const res = await fetch('/api/transcribe-chunk', {
@@ -324,15 +368,21 @@ export default function MobileHome() {
             if (res.ok && data?.text) {
               const finalSpeech = data.text.trim();
               if (finalSpeech) {
-                setLiveTranscript(finalSpeech);
-                liveTranscriptRef.current = finalSpeech;
-                setUserInput(finalSpeech);
+                setLiveTranscript((prev) => {
+                  const next = mergeTranscripts(prev, finalSpeech);
+                  liveTranscriptRef.current = next;
+                  setUserInput(next);
+                  return next;
+                });
                 setIsVoiceMode(false);
+                setIsTranscribing(false);
                 return;
               }
             }
           } catch (e) {
             console.error("Final transcription attempt failed:", e);
+          } finally {
+            setIsTranscribing(false);
           }
         }
       }
@@ -353,6 +403,7 @@ export default function MobileHome() {
       setIsVoiceMode(true);
       setIsListening(false);
       isTranscribingRef.current = false;
+      setIsTranscribing(false);
       voiceSessionActiveRef.current = true;
 
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -398,6 +449,7 @@ export default function MobileHome() {
         if (fullBlob.size < 1000) return;
 
         isTranscribingRef.current = true;
+        setIsTranscribing(true);
         try {
           console.log(`[Rolling Buffer] Sending full audio stream so far: ${fullBlob.size} bytes`);
           const base64Audio = await convertBlobToBase64(fullBlob);
@@ -415,13 +467,17 @@ export default function MobileHome() {
 
           const fullText = (data?.text || '').trim();
           if (fullText && voiceSessionActiveRef.current) {
-            setLiveTranscript(fullText);
-            liveTranscriptRef.current = fullText;
+            setLiveTranscript((prev) => {
+              const next = mergeTranscripts(prev, fullText);
+              liveTranscriptRef.current = next;
+              return next;
+            });
           }
         } catch (err: unknown) {
           console.error('[Rolling Buffer Transcription Error]:', err);
         } finally {
           isTranscribingRef.current = false;
+          setIsTranscribing(false);
         }
       };
 
@@ -2303,9 +2359,19 @@ export default function MobileHome() {
           >
             <div className="absolute top-[calc(env(safe-area-inset-top)+2rem)] left-6 right-6">
               <p className="text-[10px] uppercase tracking-[0.28em] text-stone-500 font-bold mb-3">Live Transcription</p>
-              <p className="text-lg text-stone-100 leading-relaxed min-h-[72px]">
-                {liveTranscript || 'Start speaking...'}
-              </p>
+              <div className="text-lg text-stone-100 leading-relaxed min-h-[72px] flex flex-wrap items-baseline gap-x-2">
+                {liveTranscript ? (
+                  <span>{liveTranscript}</span>
+                ) : (
+                  <span className="text-stone-600 italic">Start speaking...</span>
+                )}
+                {isTranscribing && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-accent/15 text-accent border border-accent/20 animate-pulse select-none">
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent mr-1.5 animate-ping" />
+                    Listening
+                  </span>
+                )}
+              </div>
               {voiceError && (
                 <p className="mt-3 text-xs text-red-400">{voiceError}</p>
               )}
