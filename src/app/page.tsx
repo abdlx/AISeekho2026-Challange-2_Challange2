@@ -442,8 +442,30 @@ export default function MobileHome() {
       }
       const data = await res.json();
 
-      // Map API database traces array into local descriptive timeline format
-      const formatted = (data.traces || []).map((t: { tool_name?: string; step_type?: string; agent_name?: string; payload?: unknown }) => {
+      // 1. Deduplicate: keep only the latest trace for each step/tool type in the session
+      const uniqueTracesMap = new Map<string, any>();
+      for (const t of data.traces || []) {
+        const key = t.tool_name || t.step_type || 'unknown';
+        uniqueTracesMap.set(key, t);
+      }
+      const uniqueTraces = Array.from(uniqueTracesMap.values());
+
+      // 2. Sort logically: map trace step order deterministically
+      const getTraceWeight = (t: { tool_name?: string; step_type?: string }) => {
+        if (t.step_type === 'linguistic_analysis') return 1;
+        if (t.tool_name === 'geocode_location') return 2;
+        if (t.tool_name === 'find_providers') return 3;
+        if (t.tool_name === 'rank_providers') return 4;
+        if (t.tool_name === 'calculate_travel') return 5;
+        if (t.tool_name === 'book_provider') return 6;
+        if (t.tool_name === 'schedule_followup') return 7;
+        return 8;
+      };
+      
+      const sortedTraces = uniqueTraces.sort((a, b) => getTraceWeight(a) - getTraceWeight(b));
+
+      // 3. Map API database traces array into local descriptive timeline format
+      const formatted = sortedTraces.map((t: { tool_name?: string; step_type?: string; agent_name?: string; payload?: unknown }) => {
         let msg = '';
         const payload = (t.payload || {}) as Record<string, unknown>;
 
@@ -1580,7 +1602,7 @@ export default function MobileHome() {
                     <div className="flex flex-col">
                       {traces.map((trace, i) => (
                         <AgentTraceCard
-                          key={i}
+                          key={`${trace.step}-${i}`}
                           trace={trace}
                           isLast={i === traces.length - 1}
                           isActive={i === traces.length - 1}
@@ -2064,7 +2086,7 @@ export default function MobileHome() {
                   <div className="flex flex-col">
                     {drawerTraces.map((trace, i) => (
                       <AgentTraceCard
-                        key={i}
+                        key={`${trace.step}-${i}`}
                         trace={trace}
                         isLast={i === drawerTraces.length - 1}
                         isActive={false}
