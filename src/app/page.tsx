@@ -225,11 +225,10 @@ export default function MobileHome() {
   const traceFlushTimerRef = useRef<number | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
-  const segmentTimerRef = useRef<number | null>(null);
   const voiceSessionActiveRef = useRef(false);
   const liveTranscriptRef = useRef('');
   const isTranscribingRef = useRef(false);
-  const pendingChunksRef = useRef<Array<{ base64Audio: string; mimeType: string; previousTranscript: string }>>([]);
+  const accumulatedChunksRef = useRef<Blob[]>([]);
 
   const enqueueTrace = useCallback((trace: { step: string; message: string }, options?: { dedupeStep?: string }) => {
     traceBufferRef.current.push(trace);
@@ -262,9 +261,6 @@ export default function MobileHome() {
         window.clearTimeout(traceFlushTimerRef.current);
       }
       voiceSessionActiveRef.current = false;
-      if (segmentTimerRef.current !== null) {
-        window.clearTimeout(segmentTimerRef.current);
-      }
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
       }
@@ -291,106 +287,8 @@ export default function MobileHome() {
     });
   };
 
-  const flushTranscriptionQueue = async () => {
-    if (isTranscribingRef.current) return;
-    if (pendingChunksRef.current.length === 0) return;
-
-    isTranscribingRef.current = true;
-    try {
-      while (pendingChunksRef.current.length > 0) {
-        const chunk = pendingChunksRef.current.shift();
-        if (!chunk) continue;
-
-        const res = await fetch('/api/transcribe-chunk', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(chunk),
-        });
-
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data?.error || 'Transcription failed');
-        }
-
-        const chunkText = (data?.text || '').trim();
-        if (chunkText) {
-          setLiveTranscript((prev) => {
-            const next = prev ? `${prev} ${chunkText}` : chunkText;
-            liveTranscriptRef.current = next;
-            return next;
-          });
-        }
-      }
-    } catch (err: unknown) {
-      setVoiceError(err instanceof Error ? err.message : 'Failed to transcribe audio');
-    } finally {
-      isTranscribingRef.current = false;
-      if (pendingChunksRef.current.length > 0) {
-        void flushTranscriptionQueue();
-      }
-    }
-  };
-
-  const startRecordingSegment = (stream: MediaStream, mimeType?: string) => {
-    if (!voiceSessionActiveRef.current) return;
-
-    const segmentChunks: Blob[] = [];
-    const recorder = mimeType
-      ? new MediaRecorder(stream, { mimeType })
-      : new MediaRecorder(stream);
-
-    recorder.ondataavailable = (event: BlobEvent) => {
-      if (event.data && event.data.size > 0) {
-        segmentChunks.push(event.data);
-      }
-    };
-
-    recorder.onerror = () => {
-      setVoiceError('Microphone recording error');
-    };
-
-    recorder.onstop = async () => {
-      segmentTimerRef.current = null;
-
-      if (segmentChunks.length > 0) {
-        const audioBlob = new Blob(segmentChunks, { type: recorder.mimeType || mimeType || 'audio/webm' });
-        if (audioBlob.size > 1000) {
-          try {
-            const base64Audio = await convertBlobToBase64(audioBlob);
-            pendingChunksRef.current.push({
-              base64Audio,
-              mimeType: audioBlob.type || recorder.mimeType || mimeType || 'audio/webm',
-              previousTranscript: liveTranscriptRef.current,
-            });
-            void flushTranscriptionQueue();
-          } catch (err: unknown) {
-            setVoiceError(err instanceof Error ? err.message : 'Failed to capture audio');
-          }
-        }
-      }
-
-      const streamStillLive = stream.getTracks().some((track) => track.readyState === 'live');
-      if (voiceSessionActiveRef.current && streamStillLive) {
-        window.setTimeout(() => startRecordingSegment(stream, mimeType), 80);
-      }
-    };
-
-    mediaRecorderRef.current = recorder;
-    recorder.start();
-    segmentTimerRef.current = window.setTimeout(() => {
-      if (recorder.state === 'recording') {
-        recorder.stop();
-      }
-    }, 3200);
-  };
-
   const stopLiveTranscription = () => {
     voiceSessionActiveRef.current = false;
-    if (segmentTimerRef.current !== null) {
-      window.clearTimeout(segmentTimerRef.current);
-      segmentTimerRef.current = null;
-    }
-
     const recorder = mediaRecorderRef.current;
     if (recorder && recorder.state !== 'inactive') {
       recorder.stop();
@@ -405,10 +303,43 @@ export default function MobileHome() {
     setIsListening(false);
   };
 
-  const closeVoiceMode = (applyTranscript: boolean) => {
+  const closeVoiceMode = async (applyTranscript: boolean) => {
     stopLiveTranscription();
-    if (applyTranscript && liveTranscript.trim()) {
-      setUserInput(liveTranscript.trim());
+    
+    if (applyTranscript) {
+      // Perform a final, absolute transcription of the FULL rolling buffer
+      if (accumulatedChunksRef.current.length > 0) {
+        const fullBlob = new Blob(accumulatedChunksRef.current, { 
+          type: mediaRecorderRef.current?.mimeType || 'audio/webm' 
+        });
+        if (fullBlob.size > 1000) {
+          try {
+            const base64Audio = await convertBlobToBase64(fullBlob);
+            const res = await fetch('/api/transcribe-chunk', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ base64Audio }),
+            });
+            const data = await res.json();
+            if (res.ok && data?.text) {
+              const finalSpeech = data.text.trim();
+              if (finalSpeech) {
+                setLiveTranscript(finalSpeech);
+                liveTranscriptRef.current = finalSpeech;
+                setUserInput(finalSpeech);
+                setIsVoiceMode(false);
+                return;
+              }
+            }
+          } catch (e) {
+            console.error("Final transcription attempt failed:", e);
+          }
+        }
+      }
+      
+      if (liveTranscriptRef.current.trim()) {
+        setUserInput(liveTranscriptRef.current.trim());
+      }
     }
     setIsVoiceMode(false);
   };
@@ -418,9 +349,10 @@ export default function MobileHome() {
       setVoiceError(null);
       setLiveTranscript('');
       liveTranscriptRef.current = '';
+      accumulatedChunksRef.current = [];
       setIsVoiceMode(true);
       setIsListening(false);
-      pendingChunksRef.current = [];
+      isTranscribingRef.current = false;
       voiceSessionActiveRef.current = true;
 
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -440,9 +372,70 @@ export default function MobileHome() {
 
       const mimeTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
       const supportedMimeType = mimeTypes.find((type) => MediaRecorder.isTypeSupported(type));
+      
+      const recorder = supportedMimeType
+        ? new MediaRecorder(stream, { mimeType: supportedMimeType })
+        : new MediaRecorder(stream);
+      
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = async (event: BlobEvent) => {
+        if (!event.data || event.data.size === 0 || !voiceSessionActiveRef.current) return;
+
+        // 1. Accumulate the chunk in the continuous rolling buffer
+        accumulatedChunksRef.current.push(event.data);
+
+        // 2. Skip API call if one is already in-flight
+        if (isTranscribingRef.current) {
+          console.log("[Rolling Buffer] Skipping request: previous transcription still in progress.");
+          return;
+        }
+
+        // 3. Compile all fragments into a single playable audio blob
+        const fullBlob = new Blob(accumulatedChunksRef.current, { 
+          type: recorder.mimeType || supportedMimeType || 'audio/webm' 
+        });
+        if (fullBlob.size < 1000) return;
+
+        isTranscribingRef.current = true;
+        try {
+          console.log(`[Rolling Buffer] Sending full audio stream so far: ${fullBlob.size} bytes`);
+          const base64Audio = await convertBlobToBase64(fullBlob);
+
+          const res = await fetch('/api/transcribe-chunk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ base64Audio }),
+          });
+
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data?.error || 'Transcription failed');
+          }
+
+          const fullText = (data?.text || '').trim();
+          if (fullText && voiceSessionActiveRef.current) {
+            setLiveTranscript(fullText);
+            liveTranscriptRef.current = fullText;
+          }
+        } catch (err: unknown) {
+          console.error('[Rolling Buffer Transcription Error]:', err);
+        } finally {
+          isTranscribingRef.current = false;
+        }
+      };
+
+      recorder.onerror = () => {
+        setVoiceError('Microphone recording error');
+      };
+
+      recorder.onstop = () => {
+        setIsListening(false);
+      };
 
       setIsListening(true);
-      startRecordingSegment(stream, supportedMimeType);
+      recorder.start(2200); // Trigger data available every 2.2 seconds
+
       if (hapticsRef.current) {
         void hapticsRef.current.vibrate({ duration: 11 });
       }
