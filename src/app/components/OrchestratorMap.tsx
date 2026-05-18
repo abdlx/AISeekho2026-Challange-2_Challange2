@@ -8,6 +8,7 @@ interface OrchestratorMapProps {
   providerLocation?: string;   // "lat, lng" — the service provider
   providerName?: string;       // Display name for the provider marker
   bookingConfirmed?: boolean;
+  bookingStatus?: string;      // New status tracking parameter
 }
 
 // Generate a stable color from a string (for provider avatar backgrounds)
@@ -36,6 +37,7 @@ export default function OrchestratorMap({
   providerLocation,
   providerName = 'Provider',
   bookingConfirmed = false,
+  bookingStatus,
 }: OrchestratorMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
@@ -45,6 +47,16 @@ export default function OrchestratorMap({
   const fallbackPolylineRef = useRef<google.maps.Polyline | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const animationFrameRef = useRef<number | null>(null);
+
+  // Cleanup animation frame
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, []);
 
   // Load Maps SDK once
   useEffect(() => {
@@ -200,6 +212,32 @@ export default function OrchestratorMap({
               const bounds = new google.maps.LatLngBounds();
               decodedPath.forEach(point => bounds.extend(point));
               map.fitBounds(bounds, { top: 70, bottom: 70, left: 50, right: 50 });
+
+              // Gliding pin en-route animated marker tracking
+              if (bookingStatus === 'Provider En Route' && decodedPath.length > 0) {
+                if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+                const duration = 20000; // Smooth 20s transition
+                const startTime = performance.now();
+
+                const animateMarker = (now: number) => {
+                  const elapsed = now - startTime;
+                  const fraction = Math.min(elapsed / duration, 1);
+                  const pathIndex = Math.min(
+                    Math.floor(fraction * decodedPath.length),
+                    decodedPath.length - 1
+                  );
+                  const currentPos = decodedPath[pathIndex];
+
+                  if (currentPos && providerMarkerRef.current) {
+                    providerMarkerRef.current.position = currentPos;
+                  }
+
+                  if (fraction < 1 && bookingStatus === 'Provider En Route') {
+                    animationFrameRef.current = requestAnimationFrame(animateMarker);
+                  }
+                };
+                animationFrameRef.current = requestAnimationFrame(animateMarker);
+              }
             } else {
               throw new Error(data.error?.message || 'No route found in response');
             }
@@ -219,6 +257,29 @@ export default function OrchestratorMap({
             bounds.extend(userLatLng);
             bounds.extend(providerLatLng!);
             map.fitBounds(bounds, { top: 70, bottom: 70, left: 50, right: 50 });
+
+            // Gliding fallback
+            if (bookingStatus === 'Provider En Route') {
+              if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+              const duration = 20000;
+              const startTime = performance.now();
+
+              const animateFallback = (now: number) => {
+                const elapsed = now - startTime;
+                const fraction = Math.min(elapsed / duration, 1);
+                const lat = providerLatLng!.lat + (userLatLng.lat - providerLatLng!.lat) * fraction;
+                const lng = providerLatLng!.lng + (userLatLng.lng - providerLatLng!.lng) * fraction;
+
+                if (providerMarkerRef.current) {
+                  providerMarkerRef.current.position = { lat, lng };
+                }
+
+                if (fraction < 1 && bookingStatus === 'Provider En Route') {
+                  animationFrameRef.current = requestAnimationFrame(animateFallback);
+                }
+              };
+              animationFrameRef.current = requestAnimationFrame(animateFallback);
+            }
           });
         });
       } else {
@@ -229,7 +290,7 @@ export default function OrchestratorMap({
         map.fitBounds(bounds, { top: 80, bottom: 80, left: 60, right: 60 });
       }
     }
-  }, [mapReady, userLocation, providerLocation, providerName, bookingConfirmed]);
+  }, [mapReady, userLocation, providerLocation, providerName, bookingConfirmed, bookingStatus]);
 
   if (mapError) {
     return (

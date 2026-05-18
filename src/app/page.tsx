@@ -4,11 +4,21 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, Home, Search, Clock, Send, MapPin, CheckCircle2, Activity, ChevronLeft, ReceiptText, BellRing, Navigation2, LogOut, Package, Zap, BarChart3, Languages, XCircle, Cpu, Settings, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
+import { Menu, Home, Search, Clock, Send, MapPin, CheckCircle2, Activity, ChevronLeft, ReceiptText, BellRing, Navigation2, LogOut, Package, Zap, BarChart3, Languages, XCircle, Cpu, Settings, Mail, Lock, User, Eye, EyeOff, Star } from 'lucide-react';
 import OrchestratorMap from './components/OrchestratorMap';
 import { createClientAsync } from '@/lib/supabase';
 import { signInWithEmailPassword, signUpWithEmailPassword, signOut } from './actions/auth';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
+
+export interface RankedProvider {
+  id: string;
+  name: string;
+  location: string;
+  rating?: number;
+  hourly_rate_pkr?: number;
+  distanceKm?: number;
+  totalScore?: number;
+}
 
 export interface BookingHistoryItem {
   id: string;
@@ -32,7 +42,7 @@ export interface BookingResult {
   actionChainExecuted: string[];
   targetLocation?: string;
   userLocation?: string;
-  providers?: unknown[];
+  providers?: RankedProvider[];
   rankingReasoning?: string;
   bookingDetails?: {
     confirmationCode: string;
@@ -171,6 +181,17 @@ export default function MobileHome() {
   const [userLocation, setUserLocation] = useState('');
   const [locationAccessGranted, setLocationAccessGranted] = useState(false);
   const [bookingStatus, setBookingStatus] = useState<string>('Confirmed');
+  const [etaCountdown, setEtaCountdown] = useState<string>('15 mins');
+  const [isConfirmingIntent, setIsConfirmingIntent] = useState(false);
+  const [sessionIdState, setSessionIdState] = useState<string>('');
+  const [confirmedDetails, setConfirmedDetails] = useState<{
+    intent: string;
+    serviceType: string;
+    locationName: string | null;
+    urgency: 'low' | 'medium' | 'high' | 'emergency';
+    scheduledTime: string | null;
+    priority: 'cheapest' | 'fastest' | 'nearest' | 'balanced';
+  } | null>(null);
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [history, setHistory] = useState<BookingHistoryItem[]>([]);
   const [activeTab, setActiveTab] = useState('home');
@@ -615,7 +636,7 @@ export default function MobileHome() {
     if (result && result.bookingDetails) {
       const t0 = setTimeout(() => setBookingStatus('Confirmed'), 0);
       const t1 = setTimeout(() => setBookingStatus('Provider En Route'), 3000);
-      const t2 = setTimeout(() => setBookingStatus('Service Completed'), 6000);
+      const t2 = setTimeout(() => setBookingStatus('Service Completed'), 23000);
       return () => {
         clearTimeout(t0);
         clearTimeout(t1);
@@ -623,6 +644,23 @@ export default function MobileHome() {
       };
     }
   }, [result]);
+
+  useEffect(() => {
+    if (bookingStatus === 'Provider En Route') {
+      const etaTimeouts = [
+        setTimeout(() => setEtaCountdown('15 mins'), 0),
+        setTimeout(() => setEtaCountdown('12 mins'), 3000),
+        setTimeout(() => setEtaCountdown('9 mins'), 6000),
+        setTimeout(() => setEtaCountdown('6 mins'), 9000),
+        setTimeout(() => setEtaCountdown('3 mins'), 12000),
+        setTimeout(() => setEtaCountdown('1 min'), 15000),
+        setTimeout(() => setEtaCountdown('Arrived!'), 18000),
+      ];
+      return () => {
+        etaTimeouts.forEach(clearTimeout);
+      };
+    }
+  }, [bookingStatus]);
 
   const handleRunAgent = async (e?: React.FormEvent, overrideInput?: string) => {
     if (e) e.preventDefault();
@@ -651,15 +689,21 @@ export default function MobileHome() {
     setResult(null);
     setResultSourceTab(null);
     setTraces([]);
+    setIsConfirmingIntent(false);
+    setConfirmedDetails(null);
  
     try {
+      const currentSessionId = crypto.randomUUID();
+      setSessionIdState(currentSessionId);
+
       const response = await fetch('/api/orchestrate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sessionId: crypto.randomUUID(),
+          sessionId: currentSessionId,
           userInput: finalInput,
-          userLocation: userLocation
+          userLocation: userLocation,
+          analyzeOnly: true
         })
       });
  
@@ -687,6 +731,11 @@ export default function MobileHome() {
               if (data.type === 'trace') {
                 void triggerHaptic('light');
                 setTraces(prev => [...prev, { step: data.step, message: data.message }]);
+              } else if (data.type === 'analyze_result') {
+                setConfirmedDetails(data.data);
+                setIsConfirmingIntent(true);
+                setLoading(false);
+                void triggerHaptic('medium');
               } else if (data.type === 'result') {
                 setResult(data.data);
                 setLoading(false);
@@ -709,7 +758,74 @@ export default function MobileHome() {
     }
   };
 
-  const showInput = !result && !loading;
+  const handleRunConfirmed = async (details: typeof confirmedDetails) => {
+    if (!details) return;
+    void triggerHaptic('medium');
+    setLoading(true);
+    setIsConfirmingIntent(false);
+    setTraces([{ step: 'linguistic', message: 'Linguistic Agent: Confirmed intent loaded.' }]);
+
+    try {
+      const response = await fetch('/api/orchestrate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: sessionIdState || crypto.randomUUID(),
+          userLocation: userLocation,
+          confirmedDetails: details
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to execute booking');
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+      let buffer = '';
+
+      while (!done && reader) {
+        const { value, done: doneReading } = await reader.read();
+        done = doneReading;
+        if (value) {
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === 'trace') {
+                void triggerHaptic('light');
+                setTraces(prev => {
+                  if (data.step === 'linguistic' && prev.some(t => t.step === 'linguistic')) return prev;
+                  return [...prev, { step: data.step, message: data.message }];
+                });
+              } else if (data.type === 'result') {
+                setResult(data.data);
+                setLoading(false);
+                if (data.data.bookingDetails) {
+                  void triggerHaptic('success');
+                } else {
+                  void triggerHaptic('warning');
+                }
+              } else if (data.type === 'error') {
+                throw new Error(data.error);
+              }
+            }
+          }
+        }
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+      setLoading(false);
+      void triggerHaptic('warning');
+    }
+  };
+
+  const showInput = !result && !loading && !isConfirmingIntent;
 
   if (authLoading) {
     return (
@@ -1259,9 +1375,9 @@ export default function MobileHome() {
               transition={TRANSITION_FAST}
               className="flex-1 flex flex-col"
             >
-              {/* Initial Clean State */}
+              {/* Initial Clean State & Confirmation Screen */}
               <AnimatePresence>
-                {!loading && !result && (
+                {!loading && !result && !isConfirmingIntent && (
                   <motion.div
                     initial={{ opacity: 0, y: 15 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -1313,6 +1429,118 @@ export default function MobileHome() {
                           </motion.button>
                         ))}
                       </motion.div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {isConfirmingIntent && confirmedDetails && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.97, y: 20 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.97, y: -20 }}
+                    transition={SPRING_TACTILE}
+                    className="flex-1 flex flex-col justify-center pb-8"
+                  >
+                    <div className="w-full bg-white/5 border border-white/10 backdrop-blur-[32px] rounded-[2.5rem] p-7 shadow-2xl relative z-10 space-y-6 max-w-md mx-auto">
+                      <div className="flex items-center gap-3 border-b border-white/5 pb-4">
+                        <div className="p-2.5 bg-violet-500/10 border border-violet-500/20 text-violet-400 rounded-2xl">
+                          <Languages size={20} className="animate-pulse" />
+                        </div>
+                        <div>
+                          <h3 className="font-serif text-lg text-white">Confirm Details</h3>
+                          <p className="text-[9px] uppercase tracking-wider text-stone-500 font-bold">Linguistic Agent Parse</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        {/* 1. Service Category */}
+                        <div>
+                          <label className="text-[10px] uppercase tracking-wider text-stone-500 font-bold block mb-1.5">Service Category</label>
+                          <input
+                            type="text"
+                            value={confirmedDetails.serviceType}
+                            onChange={(e) => setConfirmedDetails(prev => prev ? { ...prev, serviceType: e.target.value } : null)}
+                            className="w-full bg-stone-900/40 border border-white/[0.08] text-stone-200 rounded-2xl py-3 px-4 focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 text-sm transition-all"
+                          />
+                        </div>
+
+                        {/* 2. Location Name */}
+                        <div>
+                          <label className="text-[10px] uppercase tracking-wider text-stone-500 font-bold block mb-1.5">Location Address</label>
+                          <input
+                            type="text"
+                            value={confirmedDetails.locationName || ''}
+                            onChange={(e) => setConfirmedDetails(prev => prev ? { ...prev, locationName: e.target.value } : null)}
+                            placeholder="Current Coordinates"
+                            className="w-full bg-stone-900/40 border border-white/[0.08] text-stone-200 placeholder-stone-600 rounded-2xl py-3 px-4 focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 text-sm transition-all"
+                          />
+                        </div>
+
+                        {/* 3. Urgency & Priority */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-[10px] uppercase tracking-wider text-stone-500 font-bold block mb-1.5">Urgency Profile</label>
+                            <select
+                              value={confirmedDetails.urgency}
+                              onChange={(e) => setConfirmedDetails(prev => prev ? { ...prev, urgency: e.target.value as 'low' | 'medium' | 'high' | 'emergency' } : null)}
+                              className="w-full bg-stone-900 border border-white/[0.08] text-stone-200 rounded-2xl py-3 px-3 focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 text-sm transition-all cursor-pointer"
+                            >
+                              <option value="low">Low Priority</option>
+                              <option value="medium">Medium Priority</option>
+                              <option value="high">High Urgency</option>
+                              <option value="emergency">Emergency ⚡</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] uppercase tracking-wider text-stone-500 font-bold block mb-1.5">Rank Preference</label>
+                            <select
+                              value={confirmedDetails.priority}
+                              onChange={(e) => setConfirmedDetails(prev => prev ? { ...prev, priority: e.target.value as 'cheapest' | 'fastest' | 'nearest' | 'balanced' } : null)}
+                              className="w-full bg-stone-900 border border-white/[0.08] text-stone-200 rounded-2xl py-3 px-3 focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 text-sm transition-all cursor-pointer"
+                            >
+                              <option value="balanced">Balanced Rank</option>
+                              <option value="cheapest">Cheapest Rate 💰</option>
+                              <option value="fastest">Fastest Drive ⚡</option>
+                              <option value="nearest">Nearest Proximity 📍</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* 4. Scheduled Time */}
+                        <div>
+                          <label className="text-[10px] uppercase tracking-wider text-stone-500 font-bold block mb-1.5">Schedule Time</label>
+                          <input
+                            type="text"
+                            value={confirmedDetails.scheduledTime || 'Now'}
+                            onChange={(e) => setConfirmedDetails(prev => prev ? { ...prev, scheduledTime: e.target.value } : null)}
+                            className="w-full bg-stone-900/40 border border-white/[0.08] text-stone-200 rounded-2xl py-3 px-4 focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 text-sm transition-all"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="pt-2 flex gap-3 border-t border-white/5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void triggerHaptic('light');
+                            setIsConfirmingIntent(false);
+                            setConfirmedDetails(null);
+                            setUserInput('');
+                          }}
+                          className="flex-1 py-3.5 px-4 bg-white/5 hover:bg-white/10 text-stone-300 font-bold rounded-2xl transition-all cursor-pointer text-xs uppercase tracking-wider text-center"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRunConfirmed(confirmedDetails)}
+                          className="flex-1 py-3.5 px-4 bg-accent hover:bg-accent/90 text-stone-950 font-bold rounded-2xl transition-all cursor-pointer text-xs uppercase tracking-wider text-center shadow-lg shadow-accent/25"
+                        >
+                          Confirm
+                        </button>
+                      </div>
                     </div>
                   </motion.div>
                 )}
@@ -1397,6 +1625,7 @@ export default function MobileHome() {
                         providerLocation={result.bookingDetails?.providerLocation}
                         providerName={result.bookingDetails?.providerName || result.bookingDetails?.provider || 'Provider'}
                         bookingConfirmed={!!result.bookingDetails}
+                        bookingStatus={bookingStatus}
                       />
                       {/* Only show status overlay when a booking actually exists */}
                       {result.bookingDetails && (
@@ -1406,7 +1635,9 @@ export default function MobileHome() {
                           </div>
                           <div className="flex-1">
                             <p className="text-[10px] text-stone-500 uppercase tracking-[0.2em] font-bold transition-all duration-500">Status Tracker</p>
-                            <p className={`text-sm font-medium transition-all duration-500 ${bookingStatus === 'Confirmed' ? 'text-blue-400/90' : bookingStatus === 'Provider En Route' ? 'text-amber-400/90' : 'text-emerald-400/90'}`}>{bookingStatus}</p>
+                            <p className={`text-sm font-medium transition-all duration-500 ${bookingStatus === 'Confirmed' ? 'text-blue-400/90' : bookingStatus === 'Provider En Route' ? 'text-amber-400/90' : 'text-emerald-400/90'}`}>
+                              {bookingStatus} {bookingStatus === 'Provider En Route' && `• ETA: ${etaCountdown}`}
+                            </p>
                           </div>
                         </div>
                       )}
@@ -1545,13 +1776,139 @@ export default function MobileHome() {
                           <BarChart3 size={60} />
                         </div>
                         <h3 className="text-[10px] uppercase tracking-[0.25em] text-emerald-400 font-bold mb-4 flex items-center gap-2">
-                          <BarChart3 size={14} /> Ranking Engine Verdict
+                          <BarChart3 size={14} /> Ranking Engine Scorecard
                         </h3>
-                        <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-4 mt-2">
-                          <p className="text-stone-300 leading-relaxed text-xs">
-                            {result.rankingReasoning}
-                          </p>
+                        <p className="text-stone-400 text-xs mb-4 leading-relaxed font-light">
+                          {result.rankingReasoning}
+                        </p>
+
+                        {/* Comparative Grid */}
+                        {result.providers && result.providers.length > 0 ? (
+                          <div className="space-y-3 mt-4">
+                            {result.providers.slice(0, 3).map((prov: RankedProvider, index: number) => {
+                              const isWinner = index === 0;
+                              return (
+                                <div
+                                  key={prov.id || index}
+                                  className={`p-4 rounded-2xl border transition-all ${
+                                    isWinner
+                                      ? 'bg-emerald-500/10 border-emerald-500/30 shadow-[inset_0_0_15px_rgba(16,185,129,0.08)]'
+                                      : 'bg-white/[0.02] border-white/5'
+                                  } flex items-center justify-between gap-4`}
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <p className={`text-sm font-semibold truncate ${isWinner ? 'text-emerald-300' : 'text-stone-300'}`}>
+                                        {prov.name}
+                                      </p>
+                                      {isWinner ? (
+                                        <span className="px-2 py-0.5 text-[8px] font-black uppercase tracking-wider bg-emerald-500 text-stone-950 rounded-full select-none shadow-md">
+                                          Top Pick
+                                        </span>
+                                      ) : index === 1 ? (
+                                        <span className="px-2 py-0.5 text-[8px] font-black uppercase tracking-wider bg-white/10 text-stone-400 rounded-full select-none">
+                                          Runner Up
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-stone-500 font-medium">
+                                      <span className="flex items-center gap-1"><Star size={10} className="text-amber-500" /> {prov.rating || 4.5} ★</span>
+                                      <span>📍 {prov.distanceKm ? prov.distanceKm.toFixed(1) : 2.5} km away</span>
+                                      <span>💰 PKR {prov.hourly_rate_pkr || 2000}/hr</span>
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className={`text-[10px] uppercase font-bold tracking-wider ${isWinner ? 'text-emerald-400' : 'text-stone-500'}`}>Overall Score</p>
+                                    <p className={`text-lg font-black tracking-tight ${isWinner ? 'text-emerald-300' : 'text-stone-400'}`}>
+                                      {prov.totalScore ? prov.totalScore.toFixed(1) : (10 - index * 1.5).toFixed(1)}<span className="text-[10px] text-stone-500 font-normal">/10</span>
+                                    </p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          // Mock fallback comparison card for historical listings
+                          <div className="space-y-3 mt-4">
+                            <div className="p-4 rounded-2xl border bg-emerald-500/10 border-emerald-500/30 shadow-[inset_0_0_15px_rgba(16,185,129,0.08)] flex items-center justify-between gap-4">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <p className="text-sm font-semibold truncate text-emerald-300">
+                                    {result.bookingDetails?.providerName || 'Selected Specialist'}
+                                  </p>
+                                  <span className="px-2 py-0.5 text-[8px] font-black uppercase tracking-wider bg-emerald-500 text-stone-950 rounded-full select-none">
+                                    Top Pick
+                                  </span>
+                                </div>
+                                <div className="flex gap-3 text-[10px] text-stone-500 font-medium">
+                                  <span className="flex items-center gap-1"><Star size={10} className="text-amber-500" /> 4.8 ★</span>
+                                  <span>📍 Nearest Proximity</span>
+                                  <span>💰 PKR {result.bookingDetails?.pricePerHour || 2000}/hr</span>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-[10px] uppercase font-bold tracking-wider text-emerald-400">Overall Score</p>
+                                <p className="text-lg font-black tracking-tight text-emerald-300">9.4<span className="text-[10px] text-stone-500 font-normal">/10</span></p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+
+                    {/* Itemized Invoice & Pricing Transparency Card */}
+                    {result.bookingDetails && (
+                      <motion.div variants={STAGGER_ITEM} className="bg-white/5 backdrop-blur-3xl border border-white/10 p-7 rounded-[2rem] shadow-2xl relative overflow-hidden group hover:bg-white/[0.06] transition-all duration-300">
+                        <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none group-hover:scale-105 transition-transform text-emerald-400">
+                          <ReceiptText size={60} />
                         </div>
+                        <h3 className="text-[10px] uppercase tracking-[0.25em] text-emerald-400 font-bold mb-4 flex items-center gap-2">
+                          <ReceiptText size={14} /> Itemized Cost Breakdown
+                        </h3>
+
+                        {/* Breakdown lines */}
+                        <div className="space-y-3 font-sans text-xs text-stone-400">
+                          <div className="flex justify-between items-center">
+                            <span>Base Service Fee (1 Hour)</span>
+                            <span className="font-semibold text-stone-200">PKR {result.bookingDetails.pricePerHour || 2000}</span>
+                          </div>
+                          
+                          <div className="flex justify-between items-center">
+                            <span>Geospatial Travel & Fuel Allowance</span>
+                            <span className="font-semibold text-stone-200">
+                              PKR {(() => {
+                                const distance = result.providers?.[0]?.distanceKm || 4.2;
+                                return Math.round(distance * 50);
+                              })()}
+                            </span>
+                          </div>
+
+                          <div className="flex justify-between items-center">
+                            <span>Priority Dispatch Surcharge ({result.scheduledTime === 'Now' || !result.scheduledTime ? 'Emergency' : 'High Priority'})</span>
+                            <span className="font-semibold text-stone-200">
+                              PKR {result.bookingDetails.pricePerHour && result.bookingDetails.pricePerHour > 2200 ? 500 : 300}
+                            </span>
+                          </div>
+
+                          <div className="flex justify-between items-center pb-3 border-b border-white/5">
+                            <span>Reminders & Scheduling Platform Fee</span>
+                            <span className="font-semibold text-stone-200">PKR 150</span>
+                          </div>
+
+                          <div className="flex justify-between items-center pt-1 text-sm font-bold text-stone-100">
+                            <span className="text-emerald-400 uppercase tracking-widest text-[10px]">Total Cash Invoice</span>
+                            <span className="text-emerald-400 text-base font-black">
+                              PKR {(() => {
+                                const base = result.bookingDetails.pricePerHour || 2000;
+                                const distance = result.providers?.[0]?.distanceKm || 4.2;
+                                const travel = Math.round(distance * 50);
+                                const surcharge = base > 2200 ? 500 : 300;
+                                return base + travel + surcharge + 150;
+                              })()}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-[9px] text-stone-500 font-medium uppercase tracking-wider mt-4 text-center">Cash-on-Delivery Payment directly to specialist upon arrival</p>
                       </motion.div>
                     )}
 

@@ -22,10 +22,10 @@ export async function POST(req: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     const adminClient = createAdminClient();
 
-    const { userInput, sessionId, userLocation = '33.6844, 73.0479' } = await req.json();
+    const { userInput, sessionId, userLocation = '33.6844, 73.0479', analyzeOnly = false, confirmedDetails } = await req.json();
 
-    if (!userInput || !sessionId) {
-      return Response.json({ error: 'Missing required fields: userInput, sessionId' }, { status: 400 });
+    if ((!userInput && !confirmedDetails) || !sessionId) {
+      return Response.json({ error: 'Missing required fields: userInput or confirmedDetails, and sessionId' }, { status: 400 });
     }
 
     const stream = new ReadableStream({
@@ -68,25 +68,52 @@ export async function POST(req: Request) {
         } | null = null;
 
         try {
-          sendTrace('linguistic', 'Linguistic Agent: Extracting intent...');
-          const linguisticResult = await linguisticAgent(userInput);
+          let linguisticAnalysis;
 
-          if (!linguisticResult.success || !linguisticResult.data) {
-            sendError(linguisticResult.error || 'Linguistic agent failed');
-            controller.close();
-            return;
+          if (confirmedDetails) {
+            // Bypass Linguistic Agent and use user-confirmed details directly
+            linguisticAnalysis = confirmedDetails;
+            const displayLocation = linguisticAnalysis.locationName || userLocation;
+            sendTrace('linguistic', 'Linguistic Agent: Confirmed intent loaded.');
+            sendTrace('success', `Confirmed: ${linguisticAnalysis.serviceType} | Location: ${displayLocation} | Urgency: ${linguisticAnalysis.urgency}`);
+
+            await adminClient.from('agent_traces').insert({
+              session_id: sessionId,
+              step_type: 'linguistic_analysis',
+              agent_name: 'Linguistic Agent (Confirmed)',
+              payload: linguisticAnalysis,
+              user_id: user?.id || null,
+            });
+          } else {
+            sendTrace('linguistic', 'Linguistic Agent: Extracting intent...');
+            const linguisticResult = await linguisticAgent(userInput || '');
+
+            if (!linguisticResult.success || !linguisticResult.data) {
+              sendError(linguisticResult.error || 'Linguistic agent failed');
+              controller.close();
+              return;
+            }
+            linguisticAnalysis = linguisticResult.data;
+            const displayLocation = linguisticAnalysis.locationName || userLocation;
+            sendTrace('success', `Service: ${linguisticAnalysis.serviceType} | Location: ${displayLocation} | Urgency: ${linguisticAnalysis.urgency}`);
+
+            await adminClient.from('agent_traces').insert({
+              session_id: sessionId,
+              step_type: 'linguistic_analysis',
+              agent_name: 'Linguistic Agent',
+              payload: linguisticAnalysis,
+              user_id: user?.id || null,
+            });
+
+            if (analyzeOnly) {
+              // Send intermediate analyze result SSE payload and terminate early
+              try {
+                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'analyze_result', data: linguisticAnalysis })}\n\n`));
+              } catch { }
+              controller.close();
+              return;
+            }
           }
-          const linguisticAnalysis = linguisticResult.data;
-          const displayLocation = linguisticAnalysis.locationName || userLocation;
-          sendTrace('success', `Service: ${linguisticAnalysis.serviceType} | Location: ${displayLocation} | Urgency: ${linguisticAnalysis.urgency}`);
-
-          await adminClient.from('agent_traces').insert({
-            session_id: sessionId,
-            step_type: 'linguistic_analysis',
-            agent_name: 'Linguistic Agent',
-            payload: linguisticAnalysis,
-            user_id: user?.id || null,
-          });
 
           const result = await generateText({
             model: openrouter('google/gemini-3.1-flash-lite-preview'),
