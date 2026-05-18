@@ -14,9 +14,61 @@ function resolveAudioFormat(mimeType: string) {
 }
 
 /**
+ * Super-fast transliteration of Urdu Arabic script into clean Roman Urdu using Gemini Flash-Lite.
+ */
+async function transliterateToRomanUrdu(apiKey: string, origin: string, text: string) {
+  const cleaned = text.trim();
+  if (!cleaned) return '';
+
+  // Check if the text contains Urdu/Arabic characters. If not, return it directly.
+  const hasArabicCharacters = /[\u0600-\u06FF]/.test(cleaned);
+  if (!hasArabicCharacters) {
+    return cleaned;
+  }
+
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': origin,
+        'X-Title': 'AISO Live Transliterater',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-3.1-flash-lite-preview',
+        max_tokens: 150,
+        temperature: 0,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a super-fast Urdu-to-Roman-Urdu transliterator for a service booking app. Convert the input Urdu script (Arabic script) into clean, natural Roman Urdu using Latin alphabet characters only. Keep English technical words like plumber, AC, electrician, urgently, emergency, time, location in English. Return ONLY the transliterated Roman Urdu. No explanations, no extra text.',
+          },
+          {
+            role: 'user',
+            content: cleaned,
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      console.error("[STT Transliterate] OpenRouter returned error status:", response.status);
+      return cleaned;
+    }
+
+    const data = await response.json();
+    return data?.choices?.[0]?.message?.content?.trim() || cleaned;
+  } catch (err) {
+    console.error("[STT Transliterate] Exception:", err);
+    return cleaned;
+  }
+}
+
+/**
  * POST /api/transcribe-chunk
  * Direct, high-performance Speech-to-Text route.
- * Resolves input audio and forwards it under OpenRouter's required input_audio schema.
+ * Forces Urdu transcription using Whisper and then transliterates it instantly to Roman Urdu.
  */
 export async function POST(req: Request) {
   try {
@@ -35,7 +87,7 @@ export async function POST(req: Request) {
 
     console.log(`[STT API] Forwarding audio to OpenRouter. Format: ${resolveAudioFormat(mimeType)}. Length: ${base64Audio.length}`);
 
-    // Call OpenRouter's required input_audio schema, carrying our context prompt
+    // Call OpenRouter's required input_audio schema, forcing Urdu language transcription
     const upstream = await fetch('https://openrouter.ai/api/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
@@ -46,11 +98,12 @@ export async function POST(req: Request) {
       },
       body: JSON.stringify({
         model: 'openai/whisper-large-v3-turbo',
+        language: 'ur', // Strict Urdu transcription
         input_audio: {
           data: base64Audio,
           format: resolveAudioFormat(mimeType),
         },
-        prompt: 'This conversation seamlessly switches between English terms and Roman Urdu sentences. ye conversation Roman Urdu aur English me hai. examples: mujhe plumber chahiye very urgently. please mujhe plumber laa do. ye location check karein.',
+        prompt: 'یہ گفتگو انگریزی اور اردو میں ہے۔ پلمبر، الیکٹریشن، اے سی سروس۔', // Anchoring prompt to enforce Urdu transcription
       }),
     });
 
@@ -63,9 +116,13 @@ export async function POST(req: Request) {
     }
 
     const transcribedText = typeof data?.text === 'string' ? data.text.trim() : '';
-    console.log("[STT API] Transcribed Text:", transcribedText);
+    console.log("[STT API] Raw Transcribed Text:", transcribedText);
 
-    return Response.json({ text: transcribedText });
+    // Convert raw Arabic script Urdu to Roman Urdu instantly
+    const romanUrduText = await transliterateToRomanUrdu(apiKey, origin, transcribedText);
+    console.log("[STT API] Transliterated Roman Urdu Text:", romanUrduText);
+
+    return Response.json({ text: romanUrduText });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Unknown transcription error';
     console.error("[STT API] Server Error:", msg);
