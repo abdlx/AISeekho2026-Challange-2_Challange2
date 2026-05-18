@@ -411,17 +411,30 @@ export default function MobileHome() {
     try {
       setVoiceError(null);
       setLiveTranscript('');
+      setIsVoiceMode(true);
+      setIsListening(false);
       pendingChunksRef.current = [];
       voiceSessionActiveRef.current = true;
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('Microphone capture is not supported in this WebView.');
+      }
+      if (typeof MediaRecorder === 'undefined') {
+        throw new Error('Audio recording is not supported in this WebView.');
+      }
+
+      const stream = await Promise.race([
+        navigator.mediaDevices.getUserMedia({ audio: true }),
+        new Promise<never>((_, reject) => {
+          window.setTimeout(() => reject(new Error('Microphone permission timed out. Please allow mic access and try again.')), 10000);
+        }),
+      ]);
       mediaStreamRef.current = stream;
 
       const mimeTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
       const supportedMimeType = mimeTypes.find((type) => MediaRecorder.isTypeSupported(type));
 
       setIsListening(true);
-      setIsVoiceMode(true);
       startRecordingSegment(stream, supportedMimeType);
       if (hapticsRef.current) {
         void hapticsRef.current.vibrate({ duration: 11 });
@@ -429,7 +442,6 @@ export default function MobileHome() {
     } catch (err: unknown) {
       voiceSessionActiveRef.current = false;
       setVoiceError(err instanceof Error ? err.message : 'Unable to access microphone');
-      setIsVoiceMode(false);
       setIsListening(false);
     }
   };
