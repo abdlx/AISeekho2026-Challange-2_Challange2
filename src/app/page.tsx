@@ -233,7 +233,7 @@ export default function MobileHome() {
       if (buffered.length === 0) return;
 
       setTraces((prev) => {
-        let next = [...prev];
+        const next = [...prev];
         for (const item of buffered) {
           if (options?.dedupeStep && item.step === options.dedupeStep && next.some((t) => t.step === options.dedupeStep)) {
             continue;
