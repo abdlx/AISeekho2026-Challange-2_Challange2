@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, Home, Search, Clock, Send, MapPin, CheckCircle2, Activity, ChevronLeft, ReceiptText, BellRing, Navigation2, LogOut, Package, Zap, BarChart3, Languages, XCircle, Cpu, Settings, Mail, Lock, User, Eye, EyeOff, Star } from 'lucide-react';
+import { Menu, Home, Search, Clock, Send, MapPin, CheckCircle2, Activity, ChevronLeft, ReceiptText, BellRing, Navigation2, LogOut, Package, Zap, BarChart3, Languages, XCircle, Cpu, Settings, Mail, Lock, User, Eye, EyeOff, Star, Mic, Square } from 'lucide-react';
 import OrchestratorMap from './components/OrchestratorMap';
 import { createClientAsync } from '@/lib/supabase';
 import { signInWithEmailPassword, signUpWithEmailPassword, signOut } from './actions/auth';
@@ -209,6 +209,10 @@ export default function MobileHome() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isOnline, setIsOnline] = useState(() => typeof window !== 'undefined' ? navigator.onLine : true);
+  const [isVoiceMode, setIsVoiceMode] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState('');
+  const [voiceError, setVoiceError] = useState<string | null>(null);
 
   // Agent Trace drawer states
   const [showTraceDrawer, setShowTraceDrawer] = useState(false);
@@ -219,6 +223,10 @@ export default function MobileHome() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const traceBufferRef = useRef<{ step: string; message: string }[]>([]);
   const traceFlushTimerRef = useRef<number | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const isTranscribingRef = useRef(false);
+  const pendingChunksRef = useRef<string[]>([]);
 
   const enqueueTrace = useCallback((trace: { step: string; message: string }, options?: { dedupeStep?: string }) => {
     traceBufferRef.current.push(trace);
@@ -250,8 +258,142 @@ export default function MobileHome() {
       if (traceFlushTimerRef.current !== null) {
         window.clearTimeout(traceFlushTimerRef.current);
       }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
     };
   }, []);
+
+  const convertBlobToBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result;
+        if (typeof result !== 'string') {
+          reject(new Error('Failed to read audio chunk'));
+          return;
+        }
+        const parts = result.split(',');
+        resolve(parts[1] || '');
+      };
+      reader.onerror = () => reject(new Error('Failed to convert audio chunk'));
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  const flushTranscriptionQueue = async () => {
+    if (isTranscribingRef.current) return;
+    if (pendingChunksRef.current.length === 0) return;
+
+    isTranscribingRef.current = true;
+    try {
+      while (pendingChunksRef.current.length > 0) {
+        const base64Audio = pendingChunksRef.current.shift();
+        if (!base64Audio) continue;
+
+        const res = await fetch('/api/transcribe-chunk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ base64Audio }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.error || 'Transcription failed');
+        }
+
+        const chunkText = (data?.text || '').trim();
+        if (chunkText) {
+          setLiveTranscript((prev) => prev ? `${prev} ${chunkText}` : chunkText);
+        }
+      }
+    } catch (err: unknown) {
+      setVoiceError(err instanceof Error ? err.message : 'Failed to transcribe audio');
+    } finally {
+      isTranscribingRef.current = false;
+      if (pendingChunksRef.current.length > 0) {
+        void flushTranscriptionQueue();
+      }
+    }
+  };
+
+  const stopLiveTranscription = () => {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== 'inactive') {
+      recorder.stop();
+    }
+    mediaRecorderRef.current = null;
+
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+
+    setIsListening(false);
+  };
+
+  const closeVoiceMode = (applyTranscript: boolean) => {
+    stopLiveTranscription();
+    if (applyTranscript && liveTranscript.trim()) {
+      setUserInput(liveTranscript.trim());
+    }
+    setIsVoiceMode(false);
+  };
+
+  const startLiveTranscription = async () => {
+    try {
+      setVoiceError(null);
+      setLiveTranscript('');
+      pendingChunksRef.current = [];
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+
+      const mimeTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
+      const supportedMimeType = mimeTypes.find((type) => MediaRecorder.isTypeSupported(type));
+      const recorder = supportedMimeType
+        ? new MediaRecorder(stream, { mimeType: supportedMimeType })
+        : new MediaRecorder(stream);
+
+      recorder.ondataavailable = async (event: BlobEvent) => {
+        if (!event.data || event.data.size === 0) return;
+        try {
+          const base64Audio = await convertBlobToBase64(event.data);
+          pendingChunksRef.current.push(base64Audio);
+          void flushTranscriptionQueue();
+        } catch (err: unknown) {
+          setVoiceError(err instanceof Error ? err.message : 'Failed to capture audio');
+        }
+      };
+
+      recorder.onerror = () => {
+        setVoiceError('Microphone recording error');
+      };
+
+      recorder.onstop = () => {
+        if (mediaStreamRef.current) {
+          mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+          mediaStreamRef.current = null;
+        }
+        setIsListening(false);
+      };
+
+      mediaRecorderRef.current = recorder;
+      recorder.start(2000);
+      setIsListening(true);
+      setIsVoiceMode(true);
+      if (hapticsRef.current) {
+        void hapticsRef.current.vibrate({ duration: 11 });
+      }
+    } catch (err: unknown) {
+      setVoiceError(err instanceof Error ? err.message : 'Unable to access microphone');
+      setIsVoiceMode(false);
+      setIsListening(false);
+    }
+  };
 
   // Dynamically resize prompt input textarea as the user types
   useEffect(() => {
@@ -1438,7 +1580,7 @@ export default function MobileHome() {
             >
               {/* Initial Clean State & Confirmation Screen */}
               <AnimatePresence>
-                {!loading && !result && !isConfirmingIntent && (
+                {!loading && !result && !isConfirmingIntent && !isVoiceMode && (
                   <motion.div
                     initial={{ opacity: 0, y: 15 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -2015,7 +2157,7 @@ export default function MobileHome() {
 
       {/* Input Area (Fades away when results appear) */}
       <AnimatePresence>
-        {showInput && (
+        {showInput && !isVoiceMode && (
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -2039,6 +2181,17 @@ export default function MobileHome() {
                   className="flex-1 bg-transparent border-none outline-none focus:outline-none focus:ring-0 text-white placeholder-stone-500 font-sans tracking-tight resize-none overflow-hidden max-h-[120px] leading-[20px] py-[10px] pr-2 disabled:opacity-50"
                 />
                 <div className="flex-shrink-0 ml-2 flex items-center justify-center">
+                  {locationAccessGranted ? (
+                    <motion.button
+                      type="button"
+                      whileTap={{ scale: 0.85 }}
+                      onClick={() => { void startLiveTranscription(); }}
+                      disabled={loading}
+                      className="w-[40px] h-[40px] mr-2 bg-white/5 hover:bg-white/10 border border-white/10 text-stone-200 rounded-2xl flex items-center justify-center transition-all disabled:opacity-50"
+                    >
+                      <Mic size={17} />
+                    </motion.button>
+                  ) : null}
                   {locationAccessGranted ? (
                     <motion.button
                       type="submit"
@@ -2071,6 +2224,44 @@ export default function MobileHome() {
                   Location permission is required to start a request.
                 </p>
               )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Live Voice Mode */}
+      <AnimatePresence>
+        {isVoiceMode && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[120] bg-stone-950/95"
+          >
+            <div className="absolute top-[calc(env(safe-area-inset-top)+2rem)] left-6 right-6">
+              <p className="text-[10px] uppercase tracking-[0.28em] text-stone-500 font-bold mb-3">Live Transcription</p>
+              <p className="text-lg text-stone-100 leading-relaxed min-h-[72px]">
+                {liveTranscript || 'Start speaking...'}
+              </p>
+              {voiceError && (
+                <p className="mt-3 text-xs text-red-400">{voiceError}</p>
+              )}
+            </div>
+
+            <div className="absolute bottom-[calc(env(safe-area-inset-bottom)+2.5rem)] left-0 right-0 flex flex-col items-center gap-4">
+              <motion.button
+                whileTap={{ scale: 0.94 }}
+                onClick={() => closeVoiceMode(true)}
+                className={`w-24 h-24 rounded-full border flex items-center justify-center shadow-2xl ${isListening ? 'bg-accent text-stone-950 border-accent' : 'bg-stone-900 text-white border-white/10'}`}
+              >
+                {isListening ? <Square size={28} /> : <Mic size={30} />}
+              </motion.button>
+              <button
+                onClick={() => closeVoiceMode(false)}
+                className="text-xs uppercase tracking-[0.2em] text-stone-500 hover:text-stone-300"
+              >
+                Cancel
+              </button>
             </div>
           </motion.div>
         )}
@@ -2268,4 +2459,3 @@ function NotificationItem({ icon, title, message, time, type = 'system' }: { ico
     </div>
   );
 }
-
