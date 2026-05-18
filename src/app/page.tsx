@@ -1464,18 +1464,6 @@ export default function MobileHome() {
                           />
                         </div>
 
-                        {/* 2. Location Name */}
-                        <div>
-                          <label className="text-[10px] uppercase tracking-wider text-stone-500 font-bold block mb-1.5">Location Address</label>
-                          <input
-                            type="text"
-                            value={confirmedDetails.locationName || ''}
-                            onChange={(e) => setConfirmedDetails(prev => prev ? { ...prev, locationName: e.target.value } : null)}
-                            placeholder="Current Coordinates"
-                            className="w-full bg-stone-900/40 border border-white/[0.08] text-stone-200 placeholder-stone-600 rounded-2xl py-3 px-4 focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 text-sm transition-all"
-                          />
-                        </div>
-
                         {/* 3. Urgency & Priority */}
                         <div className="grid grid-cols-2 gap-4">
                           <div>
