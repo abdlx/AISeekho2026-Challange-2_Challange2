@@ -443,8 +443,14 @@ export default function MobileHome() {
       const data = await res.json();
 
       // 1. Deduplicate: keep only the latest trace for each step/tool type in the session
-      const uniqueTracesMap = new Map<string, any>();
-      for (const t of data.traces || []) {
+      interface TraceRow {
+        tool_name?: string;
+        step_type?: string;
+        agent_name?: string;
+        payload?: unknown;
+      }
+      const uniqueTracesMap = new Map<string, TraceRow>();
+      for (const t of (data.traces || []) as TraceRow[]) {
         const key = t.tool_name || t.step_type || 'unknown';
         uniqueTracesMap.set(key, t);
       }
