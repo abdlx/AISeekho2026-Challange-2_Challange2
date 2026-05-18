@@ -137,14 +137,14 @@ function AgentTraceCard({ trace, isLast, isActive }: { trace: { step: string; me
 
       {/* Card body */}
       <motion.div
-        initial={{ opacity: 0, x: -12, filter: 'blur(6px)' }}
-        animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+        initial={{ opacity: 0, x: -12 }}
+        animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-        className={`flex-1 mb-3 relative p-4 rounded-2xl border backdrop-blur-3xl ${isError
-          ? 'bg-red-500/5 border-red-500/20'
+        className={`flex-1 mb-3 relative p-4 rounded-2xl border backdrop-blur-md ${isError
+          ? 'bg-red-950/40 border-red-500/20'
           : isSuccess
-            ? 'bg-emerald-500/5 border-emerald-500/20'
-            : 'bg-white/[0.04] border-white/8 hover:bg-white/[0.06]'
+            ? 'bg-emerald-950/40 border-emerald-500/20'
+            : 'bg-stone-900/80 border-white/10 hover:bg-stone-800/80'
           } transition-all duration-300 shadow-[0_4px_24px_rgba(0,0,0,0.3)]`}
       >
         {/* Top accent bar */}
@@ -224,7 +224,7 @@ export default function MobileHome() {
       const scrollHeight = textareaRef.current.scrollHeight;
       // Cap maximum height at 120px (exactly 5 lines of text + padding)
       textareaRef.current.style.height = `${Math.min(scrollHeight, 120)}px`;
-      
+
       // Hide scrollbar until content exceeds 5 lines
       if (scrollHeight > 120) {
         textareaRef.current.style.overflowY = 'auto';
@@ -437,8 +437,8 @@ export default function MobileHome() {
 
     setDrawerLoading(true);
     try {
-      const url = bookingId 
-        ? `/api/traces?bookingId=${bookingId}` 
+      const url = bookingId
+        ? `/api/traces?bookingId=${bookingId}`
         : `/api/traces?sessionId=${sessionId}`;
 
       const res = await fetch(url);
@@ -446,7 +446,7 @@ export default function MobileHome() {
         throw new Error('Failed to fetch historical traces');
       }
       const data = await res.json();
-      
+
       // Map API database traces array into local descriptive timeline format
       const formatted = (data.traces || []).map((t: { tool_name?: string; step_type?: string; agent_name?: string; payload?: unknown }) => {
         let msg = '';
@@ -493,7 +493,7 @@ export default function MobileHome() {
         if (!msg) {
           msg = `Executed ${t.tool_name || t.step_type || 'unattributed action'}`;
         }
-        
+
         // Match the trace steps to our visual steps
         let step = 'linguistic';
         if (t.tool_name === 'find_providers') step = 'discovery';
@@ -668,13 +668,13 @@ export default function MobileHome() {
     if (!finalInput) return;
     setUserInput(finalInput);
     setError(null);
- 
+
     if (!navigator.onLine) {
       setError('You are offline. Please connect to the internet to run the service orchestrator.');
       void triggerHaptic('warning');
       return;
     }
- 
+
     if (!locationAccessGranted || !userLocation) {
       const granted = await requestLocationAccess();
       if (!granted) {
@@ -683,7 +683,7 @@ export default function MobileHome() {
         return;
       }
     }
- 
+
     void triggerHaptic('medium');
     setLoading(true);
     setResult(null);
@@ -691,7 +691,7 @@ export default function MobileHome() {
     setTraces([]);
     setIsConfirmingIntent(false);
     setConfirmedDetails(null);
- 
+
     try {
       const currentSessionId = crypto.randomUUID();
       setSessionIdState(currentSessionId);
@@ -706,7 +706,7 @@ export default function MobileHome() {
           analyzeOnly: true
         })
       });
- 
+
       if (!response.ok) {
         const data = await response.json();
         throw new Error(data.error || 'Failed to run agent');
@@ -1778,11 +1778,10 @@ export default function MobileHome() {
                               return (
                                 <div
                                   key={prov.id || index}
-                                  className={`p-4 rounded-2xl border transition-all ${
-                                    isWinner
+                                  className={`p-4 rounded-2xl border transition-all ${isWinner
                                       ? 'bg-emerald-500/10 border-emerald-500/30 shadow-[inset_0_0_15px_rgba(16,185,129,0.08)]'
                                       : 'bg-white/[0.02] border-white/5'
-                                  } flex items-center justify-between gap-4`}
+                                    } flex items-center justify-between gap-4`}
                                 >
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-1">
@@ -1860,7 +1859,7 @@ export default function MobileHome() {
                             <span>Base Service Fee (1 Hour)</span>
                             <span className="font-semibold text-stone-200">PKR {result.bookingDetails.pricePerHour || 2000}</span>
                           </div>
-                          
+
                           <div className="flex justify-between items-center">
                             <span>Geospatial Travel & Fuel Allowance</span>
                             <span className="font-semibold text-stone-200">
