@@ -11,7 +11,13 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[Service Worker] Precaching core assets');
-      return cache.addAll(PRECACHE_ASSETS);
+      return Promise.all(
+        PRECACHE_ASSETS.map((asset) => {
+          return cache.add(asset).catch((err) => {
+            console.warn('[Service Worker] Failed to precache:', asset, err);
+          });
+        })
+      );
     }).then(() => self.skipWaiting())
   );
 });

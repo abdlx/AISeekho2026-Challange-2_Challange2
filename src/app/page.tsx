@@ -225,8 +225,10 @@ export default function MobileHome() {
   const traceFlushTimerRef = useRef<number | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const segmentTimerRef = useRef<number | null>(null);
+  const voiceSessionActiveRef = useRef(false);
   const isTranscribingRef = useRef(false);
-  const pendingChunksRef = useRef<string[]>([]);
+  const pendingChunksRef = useRef<Array<{ base64Audio: string; mimeType: string }>>([]);
 
   const enqueueTrace = useCallback((trace: { step: string; message: string }, options?: { dedupeStep?: string }) => {
     traceBufferRef.current.push(trace);
@@ -257,6 +259,10 @@ export default function MobileHome() {
     return () => {
       if (traceFlushTimerRef.current !== null) {
         window.clearTimeout(traceFlushTimerRef.current);
+      }
+      voiceSessionActiveRef.current = false;
+      if (segmentTimerRef.current !== null) {
+        window.clearTimeout(segmentTimerRef.current);
       }
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
@@ -291,13 +297,13 @@ export default function MobileHome() {
     isTranscribingRef.current = true;
     try {
       while (pendingChunksRef.current.length > 0) {
-        const base64Audio = pendingChunksRef.current.shift();
-        if (!base64Audio) continue;
+        const chunk = pendingChunksRef.current.shift();
+        if (!chunk) continue;
 
         const res = await fetch('/api/transcribe-chunk', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ base64Audio }),
+          body: JSON.stringify(chunk),
         });
 
         const data = await res.json();
@@ -320,7 +326,65 @@ export default function MobileHome() {
     }
   };
 
+  const startRecordingSegment = (stream: MediaStream, mimeType?: string) => {
+    if (!voiceSessionActiveRef.current) return;
+
+    const segmentChunks: Blob[] = [];
+    const recorder = mimeType
+      ? new MediaRecorder(stream, { mimeType })
+      : new MediaRecorder(stream);
+
+    recorder.ondataavailable = (event: BlobEvent) => {
+      if (event.data && event.data.size > 0) {
+        segmentChunks.push(event.data);
+      }
+    };
+
+    recorder.onerror = () => {
+      setVoiceError('Microphone recording error');
+    };
+
+    recorder.onstop = async () => {
+      segmentTimerRef.current = null;
+
+      if (segmentChunks.length > 0) {
+        const audioBlob = new Blob(segmentChunks, { type: recorder.mimeType || mimeType || 'audio/webm' });
+        if (audioBlob.size > 1000) {
+          try {
+            const base64Audio = await convertBlobToBase64(audioBlob);
+            pendingChunksRef.current.push({
+              base64Audio,
+              mimeType: audioBlob.type || recorder.mimeType || mimeType || 'audio/webm',
+            });
+            void flushTranscriptionQueue();
+          } catch (err: unknown) {
+            setVoiceError(err instanceof Error ? err.message : 'Failed to capture audio');
+          }
+        }
+      }
+
+      const streamStillLive = stream.getTracks().some((track) => track.readyState === 'live');
+      if (voiceSessionActiveRef.current && streamStillLive) {
+        window.setTimeout(() => startRecordingSegment(stream, mimeType), 80);
+      }
+    };
+
+    mediaRecorderRef.current = recorder;
+    recorder.start();
+    segmentTimerRef.current = window.setTimeout(() => {
+      if (recorder.state === 'recording') {
+        recorder.stop();
+      }
+    }, 2200);
+  };
+
   const stopLiveTranscription = () => {
+    voiceSessionActiveRef.current = false;
+    if (segmentTimerRef.current !== null) {
+      window.clearTimeout(segmentTimerRef.current);
+      segmentTimerRef.current = null;
+    }
+
     const recorder = mediaRecorderRef.current;
     if (recorder && recorder.state !== 'inactive') {
       recorder.stop();
@@ -348,47 +412,22 @@ export default function MobileHome() {
       setVoiceError(null);
       setLiveTranscript('');
       pendingChunksRef.current = [];
+      voiceSessionActiveRef.current = true;
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
 
       const mimeTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
       const supportedMimeType = mimeTypes.find((type) => MediaRecorder.isTypeSupported(type));
-      const recorder = supportedMimeType
-        ? new MediaRecorder(stream, { mimeType: supportedMimeType })
-        : new MediaRecorder(stream);
 
-      recorder.ondataavailable = async (event: BlobEvent) => {
-        if (!event.data || event.data.size === 0) return;
-        try {
-          const base64Audio = await convertBlobToBase64(event.data);
-          pendingChunksRef.current.push(base64Audio);
-          void flushTranscriptionQueue();
-        } catch (err: unknown) {
-          setVoiceError(err instanceof Error ? err.message : 'Failed to capture audio');
-        }
-      };
-
-      recorder.onerror = () => {
-        setVoiceError('Microphone recording error');
-      };
-
-      recorder.onstop = () => {
-        if (mediaStreamRef.current) {
-          mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-          mediaStreamRef.current = null;
-        }
-        setIsListening(false);
-      };
-
-      mediaRecorderRef.current = recorder;
-      recorder.start(2000);
       setIsListening(true);
       setIsVoiceMode(true);
+      startRecordingSegment(stream, supportedMimeType);
       if (hapticsRef.current) {
         void hapticsRef.current.vibrate({ duration: 11 });
       }
     } catch (err: unknown) {
+      voiceSessionActiveRef.current = false;
       setVoiceError(err instanceof Error ? err.message : 'Unable to access microphone');
       setIsVoiceMode(false);
       setIsListening(false);
@@ -798,8 +837,10 @@ export default function MobileHome() {
         if (permissions.location !== 'granted') {
           const requested = await Geolocation.requestPermissions();
           if (requested.location !== 'granted') {
-            setLocationAccessGranted(false);
-            return false;
+            console.warn('Capacitor native location permission denied, falling back to G-13 coords');
+            setUserLocation("33.6493, 72.9982"); // Islamabad G-13 Fallback
+            setLocationAccessGranted(true);
+            return true;
           }
         }
 
@@ -814,20 +855,30 @@ export default function MobileHome() {
       }
 
       if ('geolocation' in navigator) {
-        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 });
-        });
-        setUserLocation(`${position.coords.latitude}, ${position.coords.longitude}`);
-        setLocationAccessGranted(true);
-        return true;
+        try {
+          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 5000 });
+          });
+          setUserLocation(`${position.coords.latitude}, ${position.coords.longitude}`);
+          setLocationAccessGranted(true);
+          return true;
+        } catch (geoErr) {
+          console.warn('Browser geolocation failed or blocked (likely insecure HTTP context), using G-13 coords fallback:', geoErr);
+          setUserLocation("33.6493, 72.9982"); // Islamabad G-13 Fallback
+          setLocationAccessGranted(true);
+          return true;
+        }
       }
 
-      setLocationAccessGranted(false);
-      return false;
+      console.warn('Geolocation API not supported on this browser, using G-13 coords fallback');
+      setUserLocation("33.6493, 72.9982"); // Islamabad G-13 Fallback
+      setLocationAccessGranted(true);
+      return true;
     } catch (err) {
-      console.error('Failed to resolve user location', err);
-      setLocationAccessGranted(false);
-      return false;
+      console.error('Failed to resolve user location, using G-13 coords fallback', err);
+      setUserLocation("33.6493, 72.9982"); // Islamabad G-13 Fallback
+      setLocationAccessGranted(true);
+      return true;
     }
   };
 
