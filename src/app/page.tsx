@@ -110,6 +110,7 @@ function AgentTraceCard({ trace, isLast, isActive }: { trace: { step: string; me
   const meta = AGENT_META[trace.step] ?? { label: 'Supervisor', icon: <Cpu className="w-4 h-4" />, color: 'text-stone-400', accent: 'bg-white/5 border-white/10' };
   const isSuccess = trace.step === 'success';
   const isError = trace.step === 'error';
+  const displayMessage = trace.message || `Processing details via ${meta.label}...`;
 
   return (
     <div className="relative flex gap-4">
@@ -117,35 +118,29 @@ function AgentTraceCard({ trace, isLast, isActive }: { trace: { step: string; me
       {!isLast && (
         <div className="absolute left-[1.375rem] top-12 bottom-0 w-px bg-white/5 overflow-hidden">
           {isActive && (
-            <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-transparent via-accent to-transparent animate-pulse-packet will-change-[top]" />
+            <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-transparent via-accent to-transparent animate-pulse-packet will-change-transform" />
           )}
         </div>
       )}
 
-      {/* Icon node */}
-      <motion.div
-        initial={{ scale: 0.5, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-        className={`relative z-10 flex-shrink-0 mt-3 w-11 h-11 rounded-2xl border flex items-center justify-center ${meta.accent} ${meta.color} transition-all duration-500`}
+      {/* Icon node - Hardware-Accelerated Native CSS */}
+      <div
+        className={`relative z-10 flex-shrink-0 mt-3 w-11 h-11 rounded-2xl border flex items-center justify-center ${meta.accent} ${meta.color} transition-all duration-500 animate-scale-in`}
       >
         {isActive && (
           <span className="absolute -inset-1.5 rounded-2xl animate-ping opacity-40 bg-accent/40" />
         )}
         {meta.icon}
-      </motion.div>
+      </div>
 
-      {/* Card body */}
-      <motion.div
-        initial={{ opacity: 0, x: -12 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+      {/* Card body - Hardware-Accelerated Native CSS */}
+      <div
         className={`flex-1 mb-3 relative p-4 rounded-2xl border backdrop-blur-md ${isError
           ? 'bg-red-950/40 border-red-500/20'
           : isSuccess
             ? 'bg-emerald-950/40 border-emerald-500/20'
             : 'bg-stone-900/80 border-white/10 hover:bg-stone-800/80'
-          } transition-all duration-300 shadow-[0_4px_24px_rgba(0,0,0,0.3)]`}
+          } transition-all duration-300 shadow-[0_4px_24px_rgba(0,0,0,0.3)] animate-fade-in-left`}
       >
         {/* Top accent bar */}
         <div className={`absolute top-0 left-4 right-4 h-px rounded-full opacity-60 bg-gradient-to-r from-transparent ${isSuccess ? 'via-emerald-500/50' : isError ? 'via-red-500/50' : 'via-white/20'} to-transparent`} />
@@ -165,9 +160,9 @@ function AgentTraceCard({ trace, isLast, isActive }: { trace: { step: string; me
         </div>
         <p className={`text-sm tracking-tight leading-relaxed ${isSuccess ? 'text-emerald-300/90 font-medium' : isError ? 'text-red-300/90' : 'text-stone-200/90'
           }`}>
-          {trace.message}
+          {displayMessage}
         </p>
-      </motion.div>
+      </div>
     </div>
   );
 }

@@ -1,0 +1,167 @@
+================================================================================
+GOOGLE ANTIGRAVITY AGENT WORKFLOW TRACE
+================================================================================
+Session ID: 77a641b9-3bdf-4a6f-bd33-8a329fa01438
+Query: "ac bilkul kaam nhi kar raha, kal subah technician chahiye, budget zayada nahi hai"
+Timestamp: 2026-05-18T21:56:52+05:00
+Status: SUCCESS
+Pipeline Execution Latency: 1845ms
+Actions Taken: 7
+================================================================================
+
+--------------------------------------------------------------------------------
+[STEP 1] LINGUISTIC AGENT
+--------------------------------------------------------------------------------
+Status: SUCCESS
+Agent: Linguistic Agent
+Input Text: "ac bilkul kaam nhi kar raha, kal subah technician chahiye, budget zayada nahi hai"
+Observation: Decoded Roman Urdu mixed syntax and extracted the following parameters:
+{
+  "intent": "Book AC Technician",
+  "serviceType": "AC Technician",
+  "locationName": null,
+  "urgency": "high",
+  "scheduledTime": "2026-05-19T10:00:00.000Z",
+  "priority": "cheapest"
+}
+Attributed Agent Log: Verified. Logged to `agent_traces` table.
+
+--------------------------------------------------------------------------------
+[STEP 2] SUPERVISOR AGENT — INITIALIZATION
+--------------------------------------------------------------------------------
+Status: ACTIVE
+Agent: Main Supervisor Agent
+Planning Execution:
+- Detected locationName is null. Bypassing geocode_location tool.
+- Initializing discoveryAgent query near client's current device coordinates [33.6844, 73.0479] (Islamabad, Pakistan).
+
+--------------------------------------------------------------------------------
+[STEP 3] DISCOVERY AGENT (proximity search)
+--------------------------------------------------------------------------------
+Status: SUCCESS
+Agent: Discovery Agent
+Tool Call: find_providers
+Input Args:
+{
+  "serviceType": "AC Technician",
+  "location": "33.6844, 73.0479"
+}
+Database Operation: Executing select query on `service_providers` table.
+Query Details: `SELECT * FROM service_providers WHERE service_type ILIKE '%AC Technician%' AND is_available = true;`
+Haversine Computation: Calculating distance for each provider...
+- "Ali AC Expert" (33.6844, 73.0479) -> Distance: 0.00 km (Co-located/Seed Location)
+- "Pindi Repairs" (33.6420, 73.0800) -> Distance: 5.63 km
+- "Rawal Cool Services" (33.5900, 73.1200) -> Distance: 12.45 km
+Providers Returned: 3 matching specialists found near device radius.
+Observation: Discovered available candidates. Passing array to Ranking Agent.
+
+--------------------------------------------------------------------------------
+[STEP 4] RANKING AGENT (composite scoring scorecard)
+--------------------------------------------------------------------------------
+Status: SUCCESS
+Agent: Ranking Agent
+Tool Call: rank_providers
+Input Args:
+{
+  "priority": "cheapest",
+  "providers": [
+    { "id": "prov_ali_101", "name": "Ali AC Expert", "rating": 4.8, "distanceKm": 0.0, "hourly_rate_pkr": 2500, "is_available": true },
+    { "id": "prov_pindi_102", "name": "Pindi Repairs", "rating": 4.2, "distanceKm": 5.6, "hourly_rate_pkr": 1800, "is_available": true },
+    { "id": "prov_rawal_103", "name": "Rawal Cool Services", "rating": 4.5, "distanceKm": 12.5, "hourly_rate_pkr": 2000, "is_available": true }
+  ]
+}
+Scoring Computation:
+- Weight Profile Enforced (cheapest): Price = 60%, Distance = 25%, Rating = 15%
+- Math Calculations:
+  - "Pindi Repairs" (PKR 1800/hr, 5.6km, 4.2★):
+    - Price Score: 10 - (((1800-1800)/(2500-1800))*10) = 10.0
+    - Distance Score: 10 - (((5.6-0.0)/(12.5-0.0))*10) = 5.52
+    - Rating Score: (4.2 / 5.0) * 10 = 8.4
+    - Weighted Composite Score: (10.0 * 0.60) + (5.52 * 0.25) + (8.4 * 0.15) = 6.00 + 1.38 + 1.26 = 8.64
+  - "Ali AC Expert" (PKR 2500/hr, 0.0km, 4.8★):
+    - Price Score: 10 - (((2500-1800)/(2500-1800))*10) = 0.0
+    - Distance Score: 10 - (((0.0-0.0)/(12.5-0.0))*10) = 10.0
+    - Rating Score: (4.8 / 5.0) * 10 = 9.6
+    - Weighted Composite Score: (0.0 * 0.60) + (10.0 * 0.25) + (9.6 * 0.15) = 0.00 + 2.50 + 1.44 = 3.94
+Winner Selection:
+- Selected "Pindi Repairs" as the optimal provider.
+- Scorecard reasoning: Selected as cheapest option — PKR 1800/hr, 5.6km away, 4.2★
+
+--------------------------------------------------------------------------------
+[STEP 5] LOGISTICS AGENT (travel ETA route calculation)
+--------------------------------------------------------------------------------
+Status: SUCCESS
+Agent: Logistics Agent
+Tool Call: calculate_travel
+Input Args:
+{
+  "providerLocation": "33.6420, 73.0800",
+  "customerLocation": "33.6844, 73.0479"
+}
+API Request: Dispatching Google Maps Distance Matrix API...
+Response: ETA = 12 mins (under current moderate traffic condition)
+Observation: Calculated optimal route.
+
+--------------------------------------------------------------------------------
+[STEP 6] TRANSACTION AGENT (booking write operation)
+--------------------------------------------------------------------------------
+Status: SUCCESS
+Agent: Transaction Agent
+Tool Call: book_provider
+Input Args:
+{
+  "providerId": "9d8d1720-6d00-4b2a-8d38-232d0ff10a22",
+  "providerName": "Pindi Repairs",
+  "providerLocation": "33.6420, 73.0800",
+  "estimatedCost": 1800,
+  "pricePerHour": 1800
+}
+Database Operation: Enforcing transactional booking write on `service_bookings` table.
+Database Payload:
+{
+  "provider_id": "9d8d1720-6d00-4b2a-8d38-232d0ff10a22",
+  "customer_location": "33.6844, 73.0479",
+  "scheduled_time": "2026-05-19T10:00:00.000Z",
+  "total_cost_pkr": 1800,
+  "status": "confirmed",
+  "service_type": "AC Technician"
+}
+Operation Result: Insert successful. Record saved.
+Confirmation Generated: confirmationCode = "BK-4982"
+
+--------------------------------------------------------------------------------
+[STEP 7] FOLLOW-UP AGENT (automated reminder schedules)
+--------------------------------------------------------------------------------
+Status: SUCCESS
+Agent: Follow-up Agent
+Tool Call: schedule_followup
+Input Args:
+{
+  "bookingId": "bd29a8a7-6d12-421b-8531-bc66190f8231",
+  "scheduledTime": "2026-05-19T10:00:00.000Z",
+  "providerName": "Pindi Repairs"
+}
+Database Operation: Enforcing follow-up record insertion on `service_followups` table.
+Calculations:
+- Reminder Time: 2026-05-19T09:00:00.000Z (Exactly 1 hour before appointment)
+- Completion Check Time: 2026-05-19T11:00:00.000Z (Exactly 1 hour after appointment)
+Database Payload:
+{
+  "booking_id": "bd29a8a7-6d12-421b-8531-bc66190f8231",
+  "reminder_time": "2026-05-19T09:00:00.000Z",
+  "status": "scheduled",
+  "message": "Reminder: Your Pindi Repairs appointment is in 1 hour."
+}
+Operation Result: Saved successfully.
+
+--------------------------------------------------------------------------------
+[STEP 8] SUPERVISOR AGENT — FINAL DECISION LOGGING
+--------------------------------------------------------------------------------
+Status: SUCCESS
+Agent: Main Supervisor Agent
+Outcome: streamed final summary and closed Server-Sent Events controller connection.
+Supervisor Insight: "I have successfully scheduled Pindi Repairs for your AC Technician booking on tomorrow morning (May 19th) at 10:00 AM. They were selected as they offered the most affordable rate (PKR 1800/hr) in your area (5.6 km away, 4.2★). Your booking confirmation code is BK-4982, and a reminder has been scheduled for 9:00 AM."
+Audit Trail: All 7 steps logged to `agent_traces` with correct attribution tags.
+================================================================================
+END OF TRACE
+================================================================================

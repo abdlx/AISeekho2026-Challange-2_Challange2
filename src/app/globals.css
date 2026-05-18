@@ -104,11 +104,33 @@ body {
 
 @keyframes pulse-packet {
   0% {
-    top: -50%;
+    transform: translateY(-100%);
   }
 
   100% {
-    top: 150%;
+    transform: translateY(200%);
+  }
+}
+
+@keyframes fade-in-left {
+  0% {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scale-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 
@@ -127,6 +149,16 @@ body {
 
   .animate-pulse-packet {
     animation: pulse-packet 2s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
+  }
+
+  .animate-fade-in-left {
+    animation: fade-in-left 0.4s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+    will-change: transform, opacity;
+  }
+
+  .animate-scale-in {
+    animation: scale-in 0.3s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+    will-change: transform, opacity;
   }
 }
 
