@@ -227,8 +227,9 @@ export default function MobileHome() {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const segmentTimerRef = useRef<number | null>(null);
   const voiceSessionActiveRef = useRef(false);
+  const liveTranscriptRef = useRef('');
   const isTranscribingRef = useRef(false);
-  const pendingChunksRef = useRef<Array<{ base64Audio: string; mimeType: string }>>([]);
+  const pendingChunksRef = useRef<Array<{ base64Audio: string; mimeType: string; previousTranscript: string }>>([]);
 
   const enqueueTrace = useCallback((trace: { step: string; message: string }, options?: { dedupeStep?: string }) => {
     traceBufferRef.current.push(trace);
@@ -313,7 +314,11 @@ export default function MobileHome() {
 
         const chunkText = (data?.text || '').trim();
         if (chunkText) {
-          setLiveTranscript((prev) => prev ? `${prev} ${chunkText}` : chunkText);
+          setLiveTranscript((prev) => {
+            const next = prev ? `${prev} ${chunkText}` : chunkText;
+            liveTranscriptRef.current = next;
+            return next;
+          });
         }
       }
     } catch (err: unknown) {
@@ -355,6 +360,7 @@ export default function MobileHome() {
             pendingChunksRef.current.push({
               base64Audio,
               mimeType: audioBlob.type || recorder.mimeType || mimeType || 'audio/webm',
+              previousTranscript: liveTranscriptRef.current,
             });
             void flushTranscriptionQueue();
           } catch (err: unknown) {
@@ -375,7 +381,7 @@ export default function MobileHome() {
       if (recorder.state === 'recording') {
         recorder.stop();
       }
-    }, 2200);
+    }, 3200);
   };
 
   const stopLiveTranscription = () => {
@@ -411,6 +417,7 @@ export default function MobileHome() {
     try {
       setVoiceError(null);
       setLiveTranscript('');
+      liveTranscriptRef.current = '';
       setIsVoiceMode(true);
       setIsListening(false);
       pendingChunksRef.current = [];

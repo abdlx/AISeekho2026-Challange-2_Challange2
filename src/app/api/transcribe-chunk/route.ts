@@ -14,7 +14,7 @@ function resolveAudioFormat(mimeType: unknown) {
   return 'webm';
 }
 
-async function normalizeTranscriptText(apiKey: string, origin: string, text: string) {
+async function normalizeTranscriptText(apiKey: string, origin: string, text: string, previousTranscript: string) {
   const cleaned = text.trim();
   if (!cleaned) return '';
 
@@ -33,11 +33,11 @@ async function normalizeTranscriptText(apiKey: string, origin: string, text: str
         {
           role: 'system',
           content:
-            'You clean speech-to-text for a Pakistani service booking app. Return only the corrected transcript. Output must be English or Roman Urdu using Latin letters only. Never output Urdu/Arabic script, Devanagari, Cyrillic, Chinese, or any non-Latin script. If the input contains Urdu, Hindi, Punjabi, or mixed Pakistani speech, transliterate it into natural Roman Urdu. Fix obvious ASR mistakes using context like plumber, electrician, AC repair, emergency, location, and urgency. Do not add new details.',
+            'You clean speech-to-text for a Pakistani service booking app. Return only the corrected CURRENT CHUNK, not the full conversation. Output must be English or Roman Urdu using Latin letters only. Never output Urdu/Arabic script, Devanagari, Cyrillic, Chinese, or any non-Latin script. If the input contains Urdu, Hindi, Punjabi, or mixed Pakistani speech, transliterate it into natural Roman Urdu. Fix obvious ASR mistakes using context like plumber, electrician, AC repair, emergency, location, urgency, bohat, zaroorat, jaldi, chahiye, mujhe. Do not add new details.',
         },
         {
           role: 'user',
-          content: cleaned,
+          content: `Previous transcript context: ${previousTranscript || '(none)'}\n\nCurrent raw chunk: ${cleaned}`,
         },
       ],
     }),
@@ -60,7 +60,7 @@ async function normalizeTranscriptText(apiKey: string, origin: string, text: str
 
 export async function POST(req: Request) {
   try {
-    const { base64Audio, mimeType } = await req.json();
+    const { base64Audio, mimeType, previousTranscript = '' } = await req.json();
 
     if (!base64Audio || typeof base64Audio !== 'string') {
       return Response.json({ error: 'Missing base64Audio payload' }, { status: 400 });
@@ -84,7 +84,16 @@ export async function POST(req: Request) {
 
     const origin = req.headers.get('origin') || 'http://localhost:3000';
 
-    const upstream = await fetch('https://openrouter.ai/api/v1/audio/transcriptions', {
+    const transcriptionBody = {
+      model: 'openai/whisper-large-v3-turbo',
+      language: 'ur',
+      input_audio: {
+        data: base64Audio,
+        format: resolveAudioFormat(mimeType),
+      },
+    };
+
+    let upstream = await fetch('https://openrouter.ai/api/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -92,16 +101,30 @@ export async function POST(req: Request) {
         'HTTP-Referer': origin,
         'X-Title': 'AISO Live Transcription',
       },
-      body: JSON.stringify({
-        model: 'openai/whisper-large-v3-turbo',
-        input_audio: {
-          data: base64Audio,
-          format: resolveAudioFormat(mimeType),
-        },
-      }),
+      body: JSON.stringify(transcriptionBody),
     });
 
-    const raw = await upstream.text();
+    let raw = await upstream.text();
+
+    if (upstream.status === 400) {
+      const retryBody = {
+        model: transcriptionBody.model,
+        input_audio: transcriptionBody.input_audio,
+      };
+
+      upstream = await fetch('https://openrouter.ai/api/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': origin,
+          'X-Title': 'AISO Live Transcription',
+        },
+        body: JSON.stringify(retryBody),
+      });
+      raw = await upstream.text();
+    }
+
     let data: unknown = {};
 
     try {
@@ -130,7 +153,8 @@ export async function POST(req: Request) {
     const normalizedText = await normalizeTranscriptText(
       apiKey,
       origin,
-      typeof successData.text === 'string' ? successData.text : ''
+      typeof successData.text === 'string' ? successData.text : '',
+      typeof previousTranscript === 'string' ? previousTranscript.slice(-500) : ''
     );
 
     return Response.json({ text: normalizedText });
