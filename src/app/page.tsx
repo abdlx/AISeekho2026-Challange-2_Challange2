@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -106,7 +106,12 @@ const STAGGER_ITEM = {
   },
 };
 
-function AgentTraceCard({ trace, isLast, isActive }: { trace: { step: string; message: string }; isLast: boolean; isActive: boolean }) {
+const AgentTraceCard = memo(function AgentTraceCard({
+  trace,
+  isLast,
+  isActive,
+  reducedEffects = false
+}: { trace: { step: string; message: string }; isLast: boolean; isActive: boolean; reducedEffects?: boolean }) {
   const meta = AGENT_META[trace.step] ?? { label: 'Supervisor', icon: <Cpu className="w-4 h-4" />, color: 'text-stone-400', accent: 'bg-white/5 border-white/10' };
   const isSuccess = trace.step === 'success';
   const isError = trace.step === 'error';
@@ -127,7 +132,7 @@ function AgentTraceCard({ trace, isLast, isActive }: { trace: { step: string; me
       <div
         className={`relative z-10 flex-shrink-0 mt-3 w-11 h-11 rounded-2xl border flex items-center justify-center ${meta.accent} ${meta.color} transition-all duration-500 animate-scale-in`}
       >
-        {isActive && (
+        {isActive && !reducedEffects && (
           <span className="absolute -inset-1.5 rounded-2xl animate-ping opacity-40 bg-accent/40" />
         )}
         {meta.icon}
@@ -135,7 +140,7 @@ function AgentTraceCard({ trace, isLast, isActive }: { trace: { step: string; me
 
       {/* Card body - Hardware-Accelerated Native CSS */}
       <div
-        className={`flex-1 mb-3 relative p-4 rounded-2xl border backdrop-blur-md ${isError
+        className={`flex-1 mb-3 relative p-4 rounded-2xl border ${reducedEffects ? '' : 'backdrop-blur-md'} ${isError
           ? 'bg-red-950/40 border-red-500/20'
           : isSuccess
             ? 'bg-emerald-950/40 border-emerald-500/20'
@@ -149,7 +154,7 @@ function AgentTraceCard({ trace, isLast, isActive }: { trace: { step: string; me
           <span className={`text-[9px] uppercase tracking-[0.25em] font-bold ${meta.color} opacity-70`}>
             {meta.label}
           </span>
-          {isActive && (
+          {isActive && !reducedEffects && (
             <span className="flex gap-1 items-center">
               <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '0ms' }} />
               <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -165,9 +170,10 @@ function AgentTraceCard({ trace, isLast, isActive }: { trace: { step: string; me
       </div>
     </div>
   );
-}
+});
 
 export default function MobileHome() {
+  const isNativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<BookingResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -211,6 +217,41 @@ export default function MobileHome() {
   const [drawerError, setDrawerError] = useState<string | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const traceBufferRef = useRef<{ step: string; message: string }[]>([]);
+  const traceFlushTimerRef = useRef<number | null>(null);
+
+  const enqueueTrace = useCallback((trace: { step: string; message: string }, options?: { dedupeStep?: string }) => {
+    traceBufferRef.current.push(trace);
+
+    if (traceFlushTimerRef.current !== null) return;
+
+    traceFlushTimerRef.current = window.setTimeout(() => {
+      const buffered = traceBufferRef.current;
+      traceBufferRef.current = [];
+      traceFlushTimerRef.current = null;
+
+      if (buffered.length === 0) return;
+
+      setTraces((prev) => {
+        let next = [...prev];
+        for (const item of buffered) {
+          if (options?.dedupeStep && item.step === options.dedupeStep && next.some((t) => t.step === options.dedupeStep)) {
+            continue;
+          }
+          next.push(item);
+        }
+        return next;
+      });
+    }, 120);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (traceFlushTimerRef.current !== null) {
+        window.clearTimeout(traceFlushTimerRef.current);
+      }
+    };
+  }, []);
 
   // Dynamically resize prompt input textarea as the user types
   useEffect(() => {
@@ -753,7 +794,7 @@ export default function MobileHome() {
               const data = JSON.parse(line.slice(6));
               if (data.type === 'trace') {
                 void triggerHaptic('light');
-                setTraces(prev => [...prev, { step: data.step, message: data.message }]);
+                enqueueTrace({ step: data.step, message: data.message });
               } else if (data.type === 'analyze_result') {
                 setConfirmedDetails(data.data);
                 setIsConfirmingIntent(true);
@@ -822,10 +863,7 @@ export default function MobileHome() {
               const data = JSON.parse(line.slice(6));
               if (data.type === 'trace') {
                 void triggerHaptic('light');
-                setTraces(prev => {
-                  if (data.step === 'linguistic' && prev.some(t => t.step === 'linguistic')) return prev;
-                  return [...prev, { step: data.step, message: data.message }];
-                });
+                enqueueTrace({ step: data.step, message: data.message }, { dedupeStep: 'linguistic' });
               } else if (data.type === 'result') {
                 setResult(data.data);
                 setLoading(false);
@@ -1607,12 +1645,13 @@ export default function MobileHome() {
                     {/* Trace cards with connector */}
                     <div className="flex flex-col">
                       {traces.map((trace, i) => (
-                        <AgentTraceCard
-                          key={`${trace.step}-${i}`}
-                          trace={trace}
-                          isLast={i === traces.length - 1}
-                          isActive={i === traces.length - 1}
-                        />
+                      <AgentTraceCard
+                        key={`${trace.step}-${i}`}
+                        trace={trace}
+                        isLast={i === traces.length - 1}
+                        isActive={i === traces.length - 1}
+                        reducedEffects={isNativeAndroid}
+                      />
                       ))}
                     </div>
                   </motion.div>
@@ -2046,14 +2085,14 @@ export default function MobileHome() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowTraceDrawer(false)}
-              className="absolute inset-0 z-[110] bg-black/60 backdrop-blur-sm"
+              className={`absolute inset-0 z-[110] bg-black/60 ${isNativeAndroid ? '' : 'backdrop-blur-sm'}`}
             />
             <motion.div
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'tween', ease: 'easeOut', duration: 0.28 }}
-              className="absolute bottom-0 left-0 right-0 max-h-[85vh] z-[111] bg-stone-950 border-t border-white/10 rounded-t-[3rem] p-6 pb-[calc(env(safe-area-inset-bottom)+2rem)] flex flex-col shadow-[0_-15px_40px_rgba(0,0,0,0.6)] overflow-hidden"
+              className={`absolute bottom-0 left-0 right-0 max-h-[85vh] z-[111] bg-stone-950 border-t border-white/10 rounded-t-[3rem] p-6 pb-[calc(env(safe-area-inset-bottom)+2rem)] flex flex-col shadow-[0_-15px_40px_rgba(0,0,0,0.6)] overflow-hidden ${isNativeAndroid ? '' : 'backdrop-blur-[2px]'}`}
             >
               {/* Decorative Drawer handle pill */}
               <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-6 flex-shrink-0" />
@@ -2096,6 +2135,7 @@ export default function MobileHome() {
                         trace={trace}
                         isLast={i === drawerTraces.length - 1}
                         isActive={false}
+                        reducedEffects={isNativeAndroid}
                       />
                     ))}
                   </div>
@@ -2228,6 +2268,4 @@ function NotificationItem({ icon, title, message, time, type = 'system' }: { ico
     </div>
   );
 }
-
-
 
