@@ -1630,7 +1630,7 @@ export default function MobileHome() {
               <div className="grid grid-cols-2 gap-4 mb-10">
                 <CategoryCard icon={<Zap className="w-6 h-6" />} label="Electrician" color="bg-amber-500/10 text-amber-400" onClick={() => { void triggerHaptic('light'); setUserInput("I need an electrician near me"); setActiveTab('home'); }} />
                 <CategoryCard icon={<MapPin className="w-6 h-6" />} label="Plumber" color="bg-blue-500/10 text-blue-400" onClick={() => { void triggerHaptic('light'); setUserInput("Find a plumber in my area"); setActiveTab('home'); }} />
-                <CategoryCard icon={<Cpu className="w-6 h-6" />} label="AC Repair" color="bg-sky-500/10 text-sky-400" onClick={() => { void triggerHaptic('light'); setUserInput("Need AC technician for G-13"); setActiveTab('home'); }} />
+                <CategoryCard icon={<Cpu className="w-6 h-6" />} label="AC Repair" color="bg-sky-500/10 text-sky-400" onClick={() => { void triggerHaptic('light'); setUserInput("Need AC technician"); setActiveTab('home'); }} />
                 <CategoryCard icon={<Activity className="w-6 h-6" />} label="Gas Fitter" color="bg-red-500/10 text-red-400" onClick={() => { void triggerHaptic('light'); setUserInput("Gas fitter required for kitchen stove"); setActiveTab('home'); }} />
               </div>
 
@@ -1639,7 +1639,7 @@ export default function MobileHome() {
                 <h3 className="text-[10px] uppercase tracking-[0.3em] text-stone-500 font-bold px-1">Try Asking</h3>
                 <div className="flex flex-col gap-3">
                   <PromptButton text="“Kal subah plumber bhej dein”" onClick={() => { void triggerHaptic('light'); setUserInput("Kal subah plumber bhej dein"); setActiveTab('home'); }} />
-                  <PromptButton text="“AC service near DHA Phase 6”" onClick={() => { void triggerHaptic('light'); setUserInput("AC service near DHA Phase 6"); setActiveTab('home'); }} />
+                  <PromptButton text="“AC service required”" onClick={() => { void triggerHaptic('light'); setUserInput("AC service required"); setActiveTab('home'); }} />
                   <PromptButton text="“Emergency electrician needed now”" onClick={() => { void triggerHaptic('light'); setUserInput("Emergency electrician needed now"); setActiveTab('home'); }} />
                 </div>
               </div>
@@ -1731,7 +1731,7 @@ export default function MobileHome() {
                       >
                         {[
                           { text: 'Emergency Plumber', prompt: 'I need a plumber immediately for leakage', icon: <MapPin className="w-3.5 h-3.5 text-blue-400" /> },
-                          { text: 'AC Service DHA', prompt: 'AC service k liye technician chahiye DHA Phase 6 mein', icon: <Activity className="w-3.5 h-3.5 text-sky-400" /> },
+                          { text: 'AC Service', prompt: 'AC service k liye technician chahiye', icon: <Activity className="w-3.5 h-3.5 text-sky-400" /> },
                           { text: 'Budget Electrician', prompt: 'Kam budget mein ghar ka board repair karne k liye electrician chahiye', icon: <Zap className="w-3.5 h-3.5 text-amber-400" /> },
                         ].map((chip, index) => (
                           <motion.button
