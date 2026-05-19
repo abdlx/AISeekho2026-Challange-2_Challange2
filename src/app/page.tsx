@@ -245,8 +245,8 @@ export default function MobileHome() {
   const [scrolled, setScrolled] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('user@aiso.com');
+  const [password, setPassword] = useState('user@aiso.com');
   const [fullName, setFullName] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -1331,6 +1331,28 @@ export default function MobileHome() {
               )}
             </motion.button>
           </form>
+
+          {!isSignUp && (
+            <div 
+              onClick={() => {
+                setEmail('user@aiso.com');
+                setPassword('user@aiso.com');
+                triggerHaptic('light');
+              }}
+              className="mt-6 p-4 bg-white/5 border border-white/10 rounded-2xl text-xs text-stone-400 hover:text-white hover:bg-white/10 cursor-pointer transition-all duration-300 flex items-center justify-between group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center">
+                  <Lock size={14} className="text-accent group-hover:scale-110 transition-transform" />
+                </div>
+                <div className="text-left">
+                  <p className="font-semibold text-stone-300">Quick Demo Access</p>
+                  <p className="text-[10px] text-stone-500 font-mono">user@aiso.com / user@aiso.com</p>
+                </div>
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-accent group-hover:underline">Autofill</span>
+            </div>
+          )}
 
           <div className="mt-6 text-center">
             <button
