@@ -1,0 +1,6 @@
+{
+  "artifactType":  "ARTIFACT_TYPE_IMPLEMENTATION_PLAN",
+  "summary":  "Implementation plan to enhance service orchestrator agents with price awareness, priority detection, smart scoring/ranking, error checks, and price details in the booking UI.",
+  "updatedAt":  "2026-05-17T17:53:52.861597500Z",
+  "requestFeedback":  true
+}

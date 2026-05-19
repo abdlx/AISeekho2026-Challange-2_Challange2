@@ -1,0 +1,13 @@
+# Task Checklist: Level 2 System Upgrade
+
+- `[/]` Update `supabase_schema.sql` with new supply chain tables.
+- `[ ]` Overhaul `src/app/api/orchestrate/route.ts`
+  - `[ ]` Update request payload to accept `sources` array.
+  - `[ ]` Rewrite system prompt for contradiction detection and planning.
+  - `[ ]` Implement `verify_inventory_truth` tool.
+  - `[ ]` Implement `evaluate_supplier` tool.
+  - `[ ]` Implement `place_emergency_order` tool (with budget constraints and simulated failure).
+  - `[ ]` Implement `notify_stakeholders` tool.
+  - `[ ]` Implement `update_delivery_estimates` tool.
+- `[ ]` Ensure error handling and trace logging are intact.
+- `[ ]` Write verification/walkthrough documentation.

@@ -35,12 +35,12 @@ graph TD
 ```
 
 ### Isolated Agent Definitions
-1. **Linguistic Specialist ([linguistic.ts](file:///d:/code/Others/AISeekho2026_After-Shortlisting_Project/src/lib/agents/linguistic.ts)):** Extracts structured service requests, schedules, urgencies, and user priority parameters from Urdu, Roman Urdu, and English mixed text.
-2. **Logistics Coordinator ([logistics.ts](file:///d:/code/Others/AISeekho2026_After-Shortlisting_Project/src/lib/agents/logistics.ts)):** Executes spatial geocoding and calculates travel ETAs using the Google Maps & Distance Matrix APIs.
-3. **Provider Discovery Agent ([discovery.ts](file:///d:/code/Others/AISeekho2026_After-Shortlisting_Project/src/lib/agents/discovery.ts)):** Queries the database for available technicians matching the service category within a 50km radius.
+1. **Linguistic Specialist ([linguistic.ts](file:///d:/code/Others/AISO_MAIN/src/lib/agents/linguistic.ts)):** Extracts structured service requests, schedules, urgencies, and user priority parameters from Urdu, Roman Urdu, and English mixed text.
+2. **Logistics Coordinator ([logistics.ts](file:///d:/code/Others/AISO_MAIN/src/lib/agents/logistics.ts)):** Executes spatial geocoding and calculates travel ETAs using the Google Maps & Distance Matrix APIs.
+3. **Provider Discovery Agent ([discovery.ts](file:///d:/code/Others/AISO_MAIN/src/lib/agents/discovery.ts)):** Queries the database for available technicians matching the service category within a 50km radius.
 4. **Ranking Engine (Inline Tool):** Scores and ranks matched providers based on user priority (cheapest, fastest, nearest, balanced) using a custom weighted normalization formula.
-5. **Transaction Agent ([transaction.ts](file:///d:/code/Others/AISeekho2026_After-Shortlisting_Project/src/lib/agents/transaction.ts)):** Simulates database booking insertions, generates secure order confirmation codes, and enforces transactional safety.
-6. **Follow-up Automator ([followup.ts](file:///d:/code/Others/AISeekho2026_After-Shortlisting_Project/src/lib/agents/followup.ts)):** Configures reminder triggers exactly 1 hour before and status/completion reviews 1 hour after bookings.
+5. **Transaction Agent ([transaction.ts](file:///d:/code/Others/AISO_MAIN/src/lib/agents/transaction.ts)):** Simulates database booking insertions, generates secure order confirmation codes, and enforces transactional safety.
+6. **Follow-up Automator ([followup.ts](file:///d:/code/Others/AISO_MAIN/src/lib/agents/followup.ts)):** Configures reminder triggers exactly 1 hour before and status/completion reviews 1 hour after bookings.
 
 ---
 
@@ -170,7 +170,7 @@ Follow these steps to run the AISO system locally in development or prepare for 
 ### 1. Clone & Install Dependencies
 ```bash
 # Clone the repository and navigate to root
-cd AISeekho2026_After-Shortlisting_Project
+cd AISeekho2026-Challange-2_Challange2
 
 # Install package dependencies
 npm install
@@ -179,15 +179,15 @@ npm install
 ### 2. Configure Environment Variables
 Create a `.env.local` file in your project root with the following variables:
 ```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-GOOGLE_MAPS_API_KEY=your_google_maps_api_key
-OPENROUTER_API_KEY=your_openrouter_api_key
+NEXT_PUBLIC_SUPABASE_URL=[REDACTED_URL]
+NEXT_PUBLIC_SUPABASE_ANON_KEY=[REDACTED_API_KEY]
+SUPABASE_SERVICE_ROLE_KEY=[REDACTED_API_KEY]
+GOOGLE_MAPS_API_KEY=[REDACTED_API_KEY]
+OPENROUTER_API_KEY=[REDACTED_API_KEY]
 ```
 
 ### 3. Initialize Database Schemas
-Execute the SQL DDL commands in [service_orchestrator_schema.sql](file:///d:/code/Others/AISeekho2026_After-Shortlisting_Project/sql_schema/service_orchestrator_schema.sql) using the Supabase SQL Editor to spin up the table schemas and seed sample provider locations.
+Execute the SQL DDL commands in [service_orchestrator_schema.sql](file:///d:/code/Others/AISO_MAIN/sql_schema/service_orchestrator_schema.sql) using the Supabase SQL Editor to spin up the table schemas and seed sample provider locations.
 
 ### 4. Boot Dev Server
 ```bash

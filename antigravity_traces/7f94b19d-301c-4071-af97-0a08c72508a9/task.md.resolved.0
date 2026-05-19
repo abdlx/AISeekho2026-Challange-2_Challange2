@@ -1,0 +1,4 @@
+- [ ] Expose `bookingDetails` from `route.ts`
+- [ ] Update `page.tsx` state to handle follow-up simulation timeline
+- [ ] Update `page.tsx` UI to display the Booking Receipt card
+- [ ] Update `page.tsx` UI to display dynamic status in the map card
