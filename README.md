@@ -5,9 +5,17 @@ AISO (AI Service Orchestrator) is a state-of-the-art, production-grade agentic s
 
 ---
 
-## 🌌 System Architecture
+## 🌌 System Architecture & Solution Design
 
-AISO implements a highly isolated, robust multi-agent orchestration pipeline. The system coordinates six specialized agents through a central supervisor via a reactive, Event-Driven Stream (SSE).
+AISO is built around a **Resiliency-First, Multi-Agent Coordination Paradigm** optimized for the low-bandwidth, high-heterogeneity conditions typical of Pakistan's informal economy. 
+
+### Key Architectural Pillars:
+*   **Dual-Loop Execution Model**:
+    *   **Linguistic Intent Loop**: Operates out-of-band to parse unstructured user commands (Urdu, Roman Urdu, English, or mix thereof) into static constraints before full planning. This isolates language translation cost and latency.
+    *   **Supervisor Orchestration Loop**: The central supervisor uses Gemini 3.1 Flash via a constrained tool-calling schema to chain discovery, ranking, logistics, and database commits in a highly predictable, linear graph.
+*   **Event-Driven Streaming (SSE)**: To bypass standard network request limits and eliminate perceived user lag, the Supervisor streams its planning steps, reasoning traces, and intermediate discoveries using Server-Sent Events (`ReadableStream`). The UI renders a real-time reactive timeline as each agent checks in.
+*   **Graceful API Degradation (Mock & Real Boundaries)**: Understanding that internet stability and API availability fluctuate, AISO includes automated proxy routing. If external APIs (like Google Maps) fail or have unconfigured credentials, the system transparently defaults to high-fidelity, simulated fallback calculations without interrupting the core user flow.
+*   **Decoupled & Isolated Agent Modules**: Each agent operates in strict functional isolation, exporting lightweight async modules with strongly-typed Zod inputs. The central supervisor coordinates their lifecycle through bounded tool contracts, avoiding dense state leakage.
 
 ```mermaid
 graph TD
@@ -34,13 +42,55 @@ graph TD
     Supervisor -->|Real-time SSE Timeline| UI[Mobile Client View]
 ```
 
-### Isolated Agent Definitions
-1. **Linguistic Specialist ([linguistic.ts](file:///d:/code/Others/AISeekho2026-Challange-2_Challange2/src/lib/agents/linguistic.ts)):** Extracts structured service requests, schedules, urgencies, and user priority parameters from Urdu, Roman Urdu, and English mixed text.
-2. **Logistics Coordinator ([logistics.ts](file:///d:/code/Others/AISeekho2026-Challange-2_Challange2/src/lib/agents/logistics.ts)):** Executes spatial geocoding and calculates travel ETAs using the Google Maps & Distance Matrix APIs.
-3. **Provider Discovery Agent ([discovery.ts](file:///d:/code/Others/AISeekho2026-Challange-2_Challange2/src/lib/agents/discovery.ts)):** Queries the database for available technicians matching the service category within a 50km radius.
-4. **Ranking Engine (Inline Tool):** Scores and ranks matched providers based on user priority (cheapest, fastest, nearest, balanced) using a custom weighted normalization formula.
-5. **Transaction Agent ([transaction.ts](file:///d:/code/Others/AISeekho2026-Challange-2_Challange2/src/lib/agents/transaction.ts)):** Simulates database booking insertions, generates secure order confirmation codes, and enforces transactional safety.
-6. **Follow-up Automator ([followup.ts](file:///d:/code/Others/AISeekho2026-Challange-2_Challange2/src/lib/agents/followup.ts)):** Configures reminder triggers exactly 1 hour before and status/completion reviews 1 hour after bookings.
+### Bounded Agent Directory
+The system decomposes operations into six isolated agent definitions:
+
+1.  **Linguistic Specialist ([linguistic.ts](./src/lib/agents/linguistic.ts))**: 
+    *   **Role**: Extracts structured user preferences, locations, scheduled time dates, and priorities.
+    *   **Logic**: Parses English, Urdu, and Roman Urdu. Normalizes fuzzy priority cues (e.g. *"kam budget"* maps to `cheapest`, *"jaldi"* maps to `fastest`, *"qareeb"* maps to `nearest`).
+2.  **Supervisor Agent ([route.ts](./src/app/api/orchestrate/route.ts))**:
+    *   **Role**: The coordinator of the orchestrator pipeline. 
+    *   **Logic**: Configured with a `stopWhen: stepCountIs(8)` constraint, it calls the geocoder, discovery agent, ranking engine, travel agent, transaction agent, and follow-up scheduler in an orderly sequence.
+3.  **Logistics Coordinator ([logistics.ts](./src/lib/agents/logistics.ts))**:
+    *   **Role**: Computes spatial transforms and travel matrices.
+    *   **Logic**: Geocodes address names into coordinates, and maps driving travel routes and time ETAs by communicating with Google Maps APIs (or fallback generators).
+4.  **Provider Discovery Agent ([discovery.ts](./src/lib/agents/discovery.ts))**:
+    *   **Role**: Discovers nearby merchants.
+    *   **Logic**: Queries the PostgreSQL table `service_providers` using fuzzy pattern matching. Implements the **Haversine formula** to calculate straight-line distances from the customer's centroid, discarding matches outside a 50km boundary.
+5.  **Ranking Engine ([route.ts](./src/app/api/orchestrate/route.ts#L177-L245))**:
+    *   **Role**: Multivariable composite scorer.
+    *   **Logic**: Runs inline within the supervisor pipeline. Normalizes prices, distances, and ratings to a uniform `[0, 10]` scale. Applies dynamic weights based on the user's priority (e.g., weighing distance at 70% for `nearest` or price at 60% for `cheapest`) to select the ideal match.
+6.  **Transaction Agent ([transaction.ts](./src/lib/agents/transaction.ts))**:
+    *   **Role**: Handles database booking actions.
+    *   **Logic**: Commits service bookings safely to Supabase, generates random `BK-####` reference numbers, and secures reservation logs.
+7.  **Follow-up Automator ([followup.ts](./src/lib/agents/followup.ts))**:
+    *   **Role**: Manages timing notifications.
+    *   **Logic**: Computes schedule alerts (calculates `scheduled_time - 1 hour`) and inserts reminder triggers into the follow-up queue.
+
+---
+
+## 🔌 API & Integration Landscape
+
+AISO couples robust real APIs with highly resilient simulated fallbacks to offer seamless performance:
+
+### 1. External APIs Used
+*   **Gemini 3.1 Flash Lite (`google/gemini-3.1-flash-lite-preview` via OpenRouter)**: 
+    *   *Used for*: Multilingual extraction and supervisor tool orchestration. Chosen for its sub-second token latency and structured object matching.
+*   **Google Maps Geocoding API**: 
+    *   *Used for*: Resolving informal text addresses (e.g. "G-13/1, Islamabad") into spatial `lat, lng` points.
+    *   *Fallback*: Simulates geocoding and defaults automatically to Islamabad centroid (`33.6844, 73.0479`) if maps integration is missing.
+*   **Google Maps Distance Matrix API**: 
+    *   *Used for*: Calculating exact driving distance (km) and travel duration (hours) incorporating active traffic data (`departure_time=now`).
+    *   *Fallback*: Executes a high-fidelity geospatial routing simulation (defaults to `distance_km: 15`, `eta_hours: 0.5`, `traffic: moderate`) to maintain uninterrupted workflows.
+
+### 2. Platform Integrations
+*   **Supabase PostgreSQL (Database Tier)**: 
+    *   Integrates persistent tables (`service_providers`, `service_bookings`, `agent_traces`, `service_followups`) using a connection-pooled architecture with standard Row-Level Security (RLS) and retries wrapper (`withRetry`).
+*   **Antigravity Step Auditing**:
+    *   Binds agent tool execution directly to database state logs. Every agent step writes observations, metadata, and token usage into the `agent_traces` table for complete compliance and diagnostic tracking.
+*   **Hybrid Mobile Shell (Capacitor)**:
+    *   The frontend wraps standard React components into highly performant mobile layouts through a unified `capacitor.config.ts` configuration, facilitating native builds for Android.
+
 
 ---
 
@@ -187,7 +237,7 @@ OPENROUTER_API_KEY=[REDACTED_API_KEY]
 ```
 
 ### 3. Initialize Database Schemas
-Execute the SQL DDL commands in [service_orchestrator_schema.sql](file:///d:/code/Others/AISeekho2026-Challange-2_Challange2/sql_schema/service_orchestrator_schema.sql) using the Supabase SQL Editor to spin up the table schemas and seed sample provider locations.
+Execute the SQL DDL commands in [service_orchestrator_schema.sql](./sql_schema/service_orchestrator_schema.sql) using the Supabase SQL Editor to spin up the table schemas and seed sample provider locations.
 
 ### 4. Boot Dev Server
 ```bash
