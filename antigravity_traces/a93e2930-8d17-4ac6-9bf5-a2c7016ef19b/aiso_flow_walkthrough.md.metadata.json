@@ -1,5 +1,0 @@
-{
-  "artifactType":  "ARTIFACT_TYPE_WALKTHROUGH",
-  "summary":  "A comprehensive technical walkthrough of the AI Service Orchestrator (AISO) application flow, mapping how raw user input triggers a cascading multi-agent workflow, streams live traces to the frontend, and renders a high-fidelity interactive map with Google Routes integration.",
-  "updatedAt":  "2026-05-18T16:03:56.053896500Z"
-}

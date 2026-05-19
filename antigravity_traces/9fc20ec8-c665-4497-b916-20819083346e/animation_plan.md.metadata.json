@@ -1,7 +1,0 @@
-{
-  "artifactType":  "ARTIFACT_TYPE_IMPLEMENTATION_PLAN",
-  "summary":  "Completed and checked-off mobile WebView performance animation plan covering CPU/GPU optimization, snappy iOS-like spring physics, premium staggered cascades, and concurrent/snappy transitions.",
-  "updatedAt":  "2026-05-17T14:59:44.124955500Z",
-  "version":  "1",
-  "requestFeedback":  true
-}
